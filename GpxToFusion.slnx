@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GpxToFusion/GpxToFusion.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GpxToFusion.Tests/GpxToFusion.Tests.csproj" />
+  </Folder>
+</Solution>
