@@ -111,8 +111,8 @@ public sealed class MapPreview : SKControl
     {
         _cache = cache;
         _cache.TileLoaded += _ => RequestRedraw();
-        _labelMenu.Items.Add("Upraviť popis…", null, (_, _) => { if (_menuLabel != null) LabelEditRequested?.Invoke(_menuLabel); });
-        _labelMenu.Items.Add("Zmazať popis", null, (_, _) => { if (_menuLabel != null) LabelDeleteRequested?.Invoke(_menuLabel); });
+        _labelMenu.Items.Add("Edit label…", null, (_, _) => { if (_menuLabel != null) LabelEditRequested?.Invoke(_menuLabel); });
+        _labelMenu.Items.Add("Delete label", null, (_, _) => { if (_menuLabel != null) LabelDeleteRequested?.Invoke(_menuLabel); });
     }
 
     private MapLabel? HitLabel(Point p)
@@ -419,7 +419,7 @@ public sealed class MapPreview : SKControl
             _labelHits = [];
             using var f = new SKFont(SKTypeface.FromFamilyName("Segoe UI"), 16);
             using var p = new SKPaint { Color = SKColors.Gray, IsAntialias = true };
-            canvas.DrawText("Otvor GPX súbor (Ctrl+O) alebo ho pretiahni sem", cw / 2f, ch / 2f, SKTextAlign.Center, f, p);
+            canvas.DrawText("Open a GPX file (Ctrl+O) or drag it here", cw / 2f, ch / 2f, SKTextAlign.Center, f, p);
             return;
         }
 

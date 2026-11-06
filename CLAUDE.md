@@ -8,7 +8,7 @@ GpxToFusion is a .NET 10 WinForms app. It turns a GPX track into material for a 
 - a map background (`map.png`, built from web tiles);
 - the track as a **Fusion polyline** inside a `.setting` file. The user pastes it into the Fusion page (Ctrl+V) and animates it there (Write On, Transform).
 
-The app does **not** render video. The user crops the track start/end in the app before exporting. UI text and README are in Slovak.
+The app does **not** render video. The user crops the track start/end in the app before exporting. UI text and README are in English.
 
 ## Commands
 

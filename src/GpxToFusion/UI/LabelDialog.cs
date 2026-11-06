@@ -4,7 +4,7 @@ namespace GpxToFusion.UI;
 
 /// <summary>
 /// Edits a map label in place (live preview through <c>onChanged</c>). Cancel restores the original values.
-/// DialogResult.Abort = the user pressed "Zmazať".
+/// DialogResult.Abort = the user pressed "Delete".
 /// </summary>
 public sealed class LabelDialog : Form
 {
@@ -16,7 +16,7 @@ public sealed class LabelDialog : Form
         _label = label;
         _original = label.Clone();
 
-        Text = isNew ? "Nový popis" : "Upraviť popis";
+        Text = isNew ? "New label" : "Edit label";
         Font = new Font("Segoe UI", 9f);
         Width = 420;
         Height = 520;
@@ -37,8 +37,8 @@ public sealed class LabelDialog : Form
         grid.PropertyValueChanged += (_, _) => onChanged();
 
         var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true };
-        var cancel = new Button { Text = "Zrušiť", DialogResult = DialogResult.Cancel, AutoSize = true };
-        var delete = new Button { Text = "Zmazať", DialogResult = DialogResult.Abort, AutoSize = true, Visible = !isNew };
+        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true };
+        var delete = new Button { Text = "Delete", DialogResult = DialogResult.Abort, AutoSize = true, Visible = !isNew };
         var buttons = new FlowLayoutPanel
         {
             Dock = DockStyle.Bottom,

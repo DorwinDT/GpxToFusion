@@ -12,13 +12,15 @@ public sealed class MainForm : Form
     private readonly MapPreview _preview;
     private readonly CropTimeline _timeline;
     private readonly PropertyGrid _grid;
-    private readonly Label _info;
+    private readonly DescriptionPanel _info, _help;
     private readonly NumericUpDown _numStart, _numEnd;
     private readonly Label _lblStart, _lblEnd, _lblResult;
-    private readonly ToolStripButton _btnExport, _btnCopy, _btnCancel, _btnAddLabel, _btnAutoFrame;
-    private readonly ToolStripComboBox _cmbPreview;
-    private readonly ToolStripDropDownButton _btnExtend;
-    private readonly ToolStripMenuItem _miExtendStart, _miExtendEnd;
+    private readonly ToolStripButton _btnExport, _btnAddLabel, _btnAutoFrame, _btnViewFrame, _btnViewFull;
+    private readonly ToolStripDropDownButton _btnExtend, _btnCancel;
+    private readonly ToolStripMenuItem _btnExtendStart, _btnExtendEnd;
+    private readonly ToolStripMenuItem _miExport, _miAddLabel, _miExtendStart, _miExtendEnd, _miViewFrame, _miViewFull, _miAutoFrame;
+    /// <summary>Menu items and buttons that are enabled only with a loaded track.</summary>
+    private readonly List<ToolStripItem> _needTrack = [];
     private readonly ToolStripStatusLabel _status;
     private readonly ToolStripProgressBar _progress;
 
@@ -43,76 +45,130 @@ public sealed class MainForm : Form
         KeyPreview = true;
         Font = new Font("Segoe UI", 9f);
 
-        // ---------- toolbar ----------
-        var tools = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Padding = new Padding(6, 2, 6, 2) };
-        var btnOpen = new ToolStripButton("Otvoriť GPX…") { ToolTipText = "Ctrl+O" };
-        btnOpen.Click += (_, _) => OpenGpxDialog();
-        var btnLoad = new ToolStripButton("Načítať projekt…");
-        btnLoad.Click += (_, _) => LoadProjectDialog();
-        var btnSave = new ToolStripButton("Uložiť projekt…") { ToolTipText = "Ctrl+S" };
-        btnSave.Click += (_, _) => SaveProjectDialog();
-        _btnExport = new ToolStripButton("Exportovať…") { Font = new Font(Font, FontStyle.Bold), Enabled = false, ToolTipText = "Ctrl+E – map.png + GpxTrack.setting + track.png + CSV" };
-        _btnExport.Click += async (_, _) => await ExportAsync();
-        _btnCopy = new ToolStripButton("Kopírovať .setting do schránky") { Enabled = false, ToolTipText = "Potom v Resolve → Fusion → Node editor → Ctrl+V" };
-        _btnCopy.Click += (_, _) => CopySetting();
-        _btnCancel = new ToolStripButton("Zrušiť export") { Visible = false };
-        _btnCancel.Click += (_, _) => _exportCts?.Cancel();
-        _cmbPreview = new ToolStripComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
-        _cmbPreview.Items.AddRange(["Náhľad: výrez exportu", "Náhľad: celá trasa"]);
-        _cmbPreview.SelectedIndex = 0;
-        _cmbPreview.SelectedIndexChanged += (_, _) =>
+        // ---------- menu + toolbar ----------
+        // Menu = every command; toolbar = the frequent ones, grouped. Items that need a loaded track go to _needTrack.
+        int dpi = DeviceDpi;
+        Image Ico(char g) => Icons.Get(g, dpi);
+        ToolStripMenuItem Mi(string text, char? icon, EventHandler onClick, Keys keys = Keys.None, bool needTrack = false)
         {
-            _preview!.Mode = _cmbPreview.SelectedIndex == 0 ? PreviewMode.ExportFrame : PreviewMode.FullTrack;
-            _preview.Invalidate();
-        };
-        _btnAutoFrame = new ToolStripButton("Auto výrez") { Enabled = false,
-            ToolTipText = "Výrez mapy si v náhľade posunieš ťahaním (alebo stredným tlačidlom) a priblížiš kolieskom myši (Shift = jemne).\n" +
-                          "Toto tlačidlo vráti automatický výrez podľa orezanej trasy." };
-        _btnAutoFrame.Click += (_, _) =>
+            var mi = new ToolStripMenuItem(text, icon is { } g ? Ico(g) : null, onClick) { ShortcutKeys = keys };
+            if (needTrack) _needTrack.Add(mi);
+            return mi;
+        }
+        ToolStripButton Tb(string text, char icon, string tip, EventHandler onClick, bool needTrack = false)
         {
-            _settings.ManualFrame = null;
-            Recompute();
-            _grid!.Refresh();
-            _status!.Text = "Výrez je znova automatický (podľa orezanej trasy).";
-        };
-        _btnAddLabel = new ToolStripButton("Pridať popis") { CheckOnClick = true, Enabled = false,
-            ToolTipText = "Potom klikni do mapy. Popis: dvojklik = upraviť, ťahanie = posunúť, pravé tlačidlo = zmazať." };
-        _btnAddLabel.CheckedChanged += (_, _) =>
-        {
-            _preview!.AddLabelMode = _btnAddLabel.Checked;
-            if (_btnAddLabel.Checked)
+            var b = new ToolStripButton(text, Ico(icon), onClick)
             {
-                SetExtendMode(ExtendMode.None);
-                _status!.Text = "Klikni do mapy, kam chceš popis (Esc = zrušiť).";
-            }
-        };
-        _btnExtend = new ToolStripDropDownButton("Doplniť trasu") { Enabled = false,
-            ToolTipText = "Doplní body pred začiatok / za koniec GPX (napr. keď si tracker zapol neskôr)." };
-        _miExtendStart = new ToolStripMenuItem("Doplniť začiatok (klikaj do mapy)");
-        _miExtendStart.Click += (_, _) => SetExtendMode(_preview!.ExtendMode == ExtendMode.Start ? ExtendMode.None : ExtendMode.Start);
-        _miExtendEnd = new ToolStripMenuItem("Doplniť koniec (klikaj do mapy)");
-        _miExtendEnd.Click += (_, _) => SetExtendMode(_preview!.ExtendMode == ExtendMode.End ? ExtendMode.None : ExtendMode.End);
-        var miClearStart = new ToolStripMenuItem("Zmazať doplnený začiatok");
-        miClearStart.Click += (_, _) => { _settings.ExtraStart.Clear(); RebuildTrack(); };
-        var miClearEnd = new ToolStripMenuItem("Zmazať doplnený koniec");
-        miClearEnd.Click += (_, _) => { _settings.ExtraEnd.Clear(); RebuildTrack(); };
-        var miSaveGpx = new ToolStripMenuItem("Uložiť GPX ako…");
-        miSaveGpx.Click += (_, _) => SaveGpxDialog();
-        _btnExtend.DropDownItems.AddRange([_miExtendStart, _miExtendEnd, new ToolStripSeparator(), miClearStart, miClearEnd,
-            new ToolStripSeparator(), miSaveGpx]);
-        _btnExtend.DropDownOpening += (_, _) =>
+                ToolTipText = tip,
+                DisplayStyle = text.Length == 0 ? ToolStripItemDisplayStyle.Image : ToolStripItemDisplayStyle.ImageAndText,
+            };
+            if (needTrack) _needTrack.Add(b);
+            return b;
+        }
+
+        // File
+        var miFile = new ToolStripMenuItem("&File");
+        miFile.DropDownItems.AddRange([
+            Mi("&Open GPX…", Icons.OpenFile, (_, _) => OpenGpxDialog(), Keys.Control | Keys.O),
+            Mi("&Load project…", Icons.OpenProject, (_, _) => LoadProjectDialog(), Keys.Control | Keys.Shift | Keys.O),
+            Mi("&Save project…", Icons.Save, (_, _) => SaveProjectDialog(), Keys.Control | Keys.S, needTrack: true),
+            new ToolStripSeparator(),
+            Mi("Save &GPX with added points…", null, (_, _) => SaveGpxDialog(), needTrack: true),
+            new ToolStripSeparator(),
+            Mi("E&xit", null, (_, _) => Close(), Keys.Alt | Keys.F4),
+        ]);
+
+        // Export
+        _miExport = Mi("&Export…", Icons.Export, async (_, _) => await ExportAsync(), Keys.Control | Keys.E, needTrack: true);
+        var miOpenFolder = Mi("Open export &folder", null, (_, _) => OpenExportFolder());
+        var miExportMenu = new ToolStripMenuItem("&Export");
+        miExportMenu.DropDownItems.AddRange([
+            _miExport,
+            Mi("&Copy .setting to clipboard", Icons.Copy, (_, _) => CopySetting(), Keys.Control | Keys.Shift | Keys.C, needTrack: true),
+            new ToolStripSeparator(),
+            miOpenFolder,
+        ]);
+        miExportMenu.DropDownOpening += (_, _) => miOpenFolder.Enabled = _lastExportFolder != null && Directory.Exists(_lastExportFolder);
+
+        // View
+        _miViewFrame = Mi("Export &frame", Icons.Frame, (_, _) => SetPreviewMode(PreviewMode.ExportFrame), Keys.F5);
+        _miViewFull = Mi("F&ull track", Icons.Map, (_, _) => SetPreviewMode(PreviewMode.FullTrack), Keys.F6);
+        _miAutoFrame = Mi("&Automatic frame", Icons.Fit, (_, _) => ResetFrame(), Keys.Control | Keys.D0);
+        var miView = new ToolStripMenuItem("&View");
+        miView.DropDownItems.AddRange([_miViewFrame, _miViewFull, new ToolStripSeparator(), _miAutoFrame]);
+
+        // Edit
+        _miAddLabel = Mi("Add &label", Icons.Label, (_, _) => SetAddLabelMode(!_preview!.AddLabelMode), Keys.Control | Keys.L, needTrack: true);
+        _miExtendStart = Mi("Extend track &start", Icons.Flag,
+            (_, _) => SetExtendMode(_preview!.ExtendMode == ExtendMode.Start ? ExtendMode.None : ExtendMode.Start), needTrack: true);
+        _miExtendEnd = Mi("Extend track &end", Icons.Flag,
+            (_, _) => SetExtendMode(_preview!.ExtendMode == ExtendMode.End ? ExtendMode.None : ExtendMode.End), needTrack: true);
+        var miClearStart = Mi("Delete added start", Icons.Delete, (_, _) => { _settings.ExtraStart.Clear(); RebuildTrack(); });
+        var miClearEnd = Mi("Delete added end", Icons.Delete, (_, _) => { _settings.ExtraEnd.Clear(); RebuildTrack(); });
+        var miEdit = new ToolStripMenuItem("&Edit");
+        miEdit.DropDownItems.AddRange([_miAddLabel, new ToolStripSeparator(), _miExtendStart, _miExtendEnd, miClearStart, miClearEnd,
+            new ToolStripSeparator(), Mi("Reset &crop", Icons.Undo, (_, _) => ResetCrop(), needTrack: true)]);
+        miEdit.DropDownOpening += (_, _) =>
         {
             miClearStart.Enabled = _settings.ExtraStart.Count > 0;
             miClearEnd.Enabled = _settings.ExtraEnd.Count > 0;
         };
-        tools.Items.AddRange([btnOpen, btnLoad, btnSave, new ToolStripSeparator(), _btnExport, _btnCopy, _btnCancel,
-            new ToolStripSeparator(), _cmbPreview, _btnAutoFrame, _btnAddLabel, _btnExtend]);
+
+        // Help
+        var miHelp = new ToolStripMenuItem("&Help");
+        miHelp.DropDownItems.Add(Mi("&Controls…", Icons.Help, (_, _) => ShowHelp(), Keys.F1));
+
+        var menu = new MenuStrip { Padding = new Padding(4, 2, 0, 2) };
+        menu.Items.AddRange([miFile, miExportMenu, miView, miEdit, miHelp]);
+        MainMenuStrip = menu;
+
+        // Toolbar: File | Export | Preview | Edit
+        _btnExport = Tb("Export", Icons.Export, "Ctrl+E – map.png, GpxTrack.setting, track.png and CSV into a folder",
+            async (_, _) => await ExportAsync(), needTrack: true);
+        _btnExport.Font = new Font(Font, FontStyle.Bold);
+        _btnViewFrame = Tb("Frame", Icons.Frame, "F5 – preview exactly as map.png", (_, _) => SetPreviewMode(PreviewMode.ExportFrame));
+        _btnViewFull = Tb("Full track", Icons.Map, "F6 – full track with the frame outline", (_, _) => SetPreviewMode(PreviewMode.FullTrack));
+        _btnAutoFrame = Tb("Auto frame", Icons.Fit,
+            "Ctrl+0 – restores the automatic frame fitted to the cropped track.\nPan the frame by dragging the map, zoom with the wheel (Shift = fine).",
+            (_, _) => ResetFrame());
+        _btnAddLabel = Tb("Label", Icons.Label, "Ctrl+L – then click in the map. Label: double-click = edit, drag = move, right button = menu.",
+            (_, _) => SetAddLabelMode(!_preview!.AddLabelMode), needTrack: true);
+        _btnExtend = new ToolStripDropDownButton("Extend track", Ico(Icons.Flag))
+        {
+            ToolTipText = "Adds points before the start / after the end of the GPX (e.g. when you started the tracker late).",
+        };
+        _needTrack.Add(_btnExtend);
+        _btnExtendStart = new ToolStripMenuItem("Start (click in the map)", null,
+            (_, _) => SetExtendMode(_preview!.ExtendMode == ExtendMode.Start ? ExtendMode.None : ExtendMode.Start));
+        _btnExtendEnd = new ToolStripMenuItem("End (click in the map)", null,
+            (_, _) => SetExtendMode(_preview!.ExtendMode == ExtendMode.End ? ExtendMode.None : ExtendMode.End));
+        _btnExtend.DropDownItems.AddRange([_btnExtendStart, _btnExtendEnd]);
+
+        var iconSize = Icons.Get(Icons.Save, dpi).Size;
+        var tools = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Padding = new Padding(6, 3, 6, 3), ImageScalingSize = iconSize };
+        tools.Items.AddRange([
+            Tb("", Icons.OpenFile, "Open GPX… (Ctrl+O)", (_, _) => OpenGpxDialog()),
+            Tb("", Icons.Save, "Save project… (Ctrl+S)", (_, _) => SaveProjectDialog(), needTrack: true),
+            new ToolStripSeparator(),
+            _btnExport,
+            Tb("Copy .setting", Icons.Copy, "Ctrl+Shift+C – then in Resolve → Fusion → Node editor → Ctrl+V",
+                (_, _) => CopySetting(), needTrack: true),
+            new ToolStripSeparator(),
+            new ToolStripLabel("Preview:") { ForeColor = SystemColors.GrayText },
+            _btnViewFrame, _btnViewFull, _btnAutoFrame,
+            new ToolStripSeparator(),
+            new ToolStripLabel("Edit:") { ForeColor = SystemColors.GrayText },
+            _btnAddLabel, _btnExtend,
+        ]);
+        menu.ImageScalingSize = iconSize;
 
         // ---------- status ----------
-        var statusStrip = new StatusStrip();
-        _status = new ToolStripStatusLabel("Pripravené") { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
+        var statusStrip = new StatusStrip { ImageScalingSize = iconSize };
+        _status = new ToolStripStatusLabel("Ready") { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
         _progress = new ToolStripProgressBar { Visible = false, Width = 200, Style = ProgressBarStyle.Marquee };
-        statusStrip.Items.AddRange([_status, _progress]);
+        _btnCancel = new ToolStripDropDownButton("Cancel export", Ico(Icons.Cancel)) { Visible = false, ShowDropDownArrow = false };
+        _btnCancel.Click += (_, _) => _exportCts?.Cancel();
+        statusStrip.Items.AddRange([_status, _progress, _btnCancel]);
 
         // ---------- preview + settings ----------
         _preview = new MapPreview(_cache) { Dock = DockStyle.Fill, Settings = _settings };
@@ -129,7 +185,7 @@ public sealed class MainForm : Form
             SelectedObject = _settings,
             ToolbarVisible = false,
             PropertySort = PropertySort.Categorized,
-            HelpVisible = true,
+            HelpVisible = false, // own _help panel below: the built-in one has a fixed height and cuts descriptions off
         };
         _grid.PropertyValueChanged += (_, e) =>
         {
@@ -144,17 +200,19 @@ public sealed class MainForm : Form
             Recompute();
         };
 
-        _info = new Label
+        _help = new DescriptionPanel { Dock = DockStyle.Bottom, BackColor = SystemColors.Control, ForeColor = SystemColors.ControlText };
+        _help.MinimumSize = new Size(0, Font.Height * 3 + 14); // title + 2 lines, so short texts don't make the grid jump
+        _grid.SelectedGridItemChanged += (_, e) =>
         {
-            Dock = DockStyle.Bottom,
-            Height = 110,
-            Padding = new Padding(6),
-            BackColor = SystemColors.Info,
-            ForeColor = SystemColors.InfoText,
+            _help.Title = e.NewSelection?.Label ?? "";
+            _help.Text = e.NewSelection?.PropertyDescriptor?.Description ?? "";
         };
+
+        _info = new DescriptionPanel { Dock = DockStyle.Bottom, BackColor = SystemColors.Info, ForeColor = SystemColors.InfoText };
 
         var right = new Panel { Dock = DockStyle.Fill };
         right.Controls.Add(_grid);
+        right.Controls.Add(_help);
         right.Controls.Add(_info);
 
         var split = new SplitContainer
@@ -178,13 +236,13 @@ public sealed class MainForm : Form
         _lblStart = new Label { AutoSize = true, Margin = new Padding(4, 7, 16, 0) };
         _lblEnd = new Label { AutoSize = true, Margin = new Padding(4, 7, 16, 0) };
         _lblResult = new Label { AutoSize = true, Margin = new Padding(4, 7, 16, 0), Font = new Font(Font, FontStyle.Bold) };
-        var btnReset = new Button { Text = "Zrušiť orezanie", AutoSize = true };
-        btnReset.Click += (_, _) => { if (_track != null) _timeline.SetRange(0, _track.Count - 1); };
+        var btnReset = new Button { Text = "Reset crop", AutoSize = true };
+        btnReset.Click += (_, _) => ResetCrop();
 
         var cropRow = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 34, Padding = new Padding(6, 4, 6, 0), WrapContents = false };
         cropRow.Controls.AddRange([
-            new Label { Text = "Začiatok:", AutoSize = true, Margin = new Padding(0, 7, 2, 0), ForeColor = Color.Green }, _numStart, _lblStart,
-            new Label { Text = "Koniec:", AutoSize = true, Margin = new Padding(0, 7, 2, 0), ForeColor = Color.Red }, _numEnd, _lblEnd,
+            new Label { Text = "Start:", AutoSize = true, Margin = new Padding(0, 7, 2, 0), ForeColor = Color.Green }, _numStart, _lblStart,
+            new Label { Text = "End:", AutoSize = true, Margin = new Padding(0, 7, 2, 0), ForeColor = Color.Red }, _numEnd, _lblEnd,
             _lblResult, btnReset,
         ]);
         var hint = new Label
@@ -192,7 +250,7 @@ public sealed class MainForm : Form
             Dock = DockStyle.Top,
             Height = 20,
             Padding = new Padding(8, 3, 0, 0),
-            Text = "Orezanie: ťahaj zelené/červené ťahadlo, stred posúva celý výber. Šípky ←/→ (Shift = 1 min, Ctrl = 10 min), Home/End prepína ťahadlo.",
+            Text = "Crop: drag the green/red handle, the middle moves the whole selection. Arrows ←/→ (Shift = 1 min, Ctrl = 10 min), Home/End switches the handle.",
             ForeColor = SystemColors.GrayText,
         };
         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 170 };
@@ -203,11 +261,13 @@ public sealed class MainForm : Form
         Controls.Add(split);
         Controls.Add(bottom);
         Controls.Add(tools);
+        Controls.Add(menu);
         Controls.Add(statusStrip);
 
         Load += (_, _) =>
         {
             split.SplitterDistance = Math.Max(300, split.Width - 380);
+            SetPreviewMode(PreviewMode.ExportFrame);
             if (startupFile != null) OpenAny(startupFile);
             else Recompute();
         };
@@ -220,12 +280,9 @@ public sealed class MainForm : Form
         {
             if (e.Data?.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files) OpenAny(files[0]);
         };
-        KeyDown += async (_, e) =>
+        KeyDown += (_, e) =>
         {
-            if (e.Control && e.KeyCode == Keys.O) { OpenGpxDialog(); e.Handled = true; }
-            else if (e.Control && e.KeyCode == Keys.S) { SaveProjectDialog(); e.Handled = true; }
-            else if (e.Control && e.KeyCode == Keys.E && _btnExport.Enabled) { e.Handled = true; await ExportAsync(); }
-            else if (e.KeyCode == Keys.Escape && _btnAddLabel.Checked) { _btnAddLabel.Checked = false; e.Handled = true; }
+            if (e.KeyCode == Keys.Escape && _preview.AddLabelMode) { SetAddLabelMode(false); e.Handled = true; }
             else if (e.KeyCode == Keys.Escape && _preview.ExtendMode != ExtendMode.None) { SetExtendMode(ExtendMode.None); e.Handled = true; }
         };
         FormClosing += (_, _) => _exportCts?.Cancel();
@@ -241,7 +298,7 @@ public sealed class MainForm : Form
 
     private void OpenGpxDialog()
     {
-        using var dlg = new OpenFileDialog { Filter = "GPX (*.gpx)|*.gpx|Všetky súbory|*.*", Title = "Otvoriť GPX" };
+        using var dlg = new OpenFileDialog { Filter = "GPX (*.gpx)|*.gpx|All files|*.*", Title = "Open GPX" };
         if (_gpxPath != null) dlg.InitialDirectory = Path.GetDirectoryName(_gpxPath);
         if (dlg.ShowDialog(this) == DialogResult.OK) OpenGpx(dlg.FileName);
     }
@@ -254,7 +311,7 @@ public sealed class MainForm : Form
             var points = GpxParser.Parse(path);
             if (points.Count < 2)
             {
-                MessageBox.Show(this, "GPX neobsahuje trasu (aspoň 2 body).", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this, "The GPX contains no track (at least 2 points).", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
             if (!fromProject)
@@ -269,19 +326,19 @@ public sealed class MainForm : Form
             Text = $"GPX → Fusion – {Path.GetFileName(path)}";
             SetTrack(cropStart ?? 0,cropEnd ?? int.MaxValue);
             _grid.Refresh();
-            _status.Text = $"Načítané: {_recorded.Count:N0} bodov, {FormatDuration(_track!.TotalSeconds)}, {_track.TotalDistance / 1000:0.00} km";
+            _status.Text = $"Loaded: {_recorded.Count:N0} points, {FormatDuration(_track!.TotalSeconds)}, {_track.TotalDistance / 1000:0.00} km";
             return true;
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, $"Nepodarilo sa načítať GPX:\n{ex.Message}", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, $"Could not load the GPX:\n{ex.Message}", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
             return false;
         }
     }
 
     private void LoadProjectDialog()
     {
-        using var dlg = new OpenFileDialog { Filter = "Projekt GPX→Fusion (*.g2f.json)|*.g2f.json|JSON|*.json", Title = "Načítať projekt" };
+        using var dlg = new OpenFileDialog { Filter = "GPX→Fusion project (*.g2f.json)|*.g2f.json|JSON|*.json", Title = "Load project" };
         if (dlg.ShowDialog(this) == DialogResult.OK) LoadProject(dlg.FileName);
     }
 
@@ -295,7 +352,7 @@ public sealed class MainForm : Form
             _preview.Settings = _settings;
             if (p.GpxPath == null || !File.Exists(p.GpxPath))
             {
-                MessageBox.Show(this, $"GPX súbor projektu sa nenašiel:\n{p.GpxPath}", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this, $"The project GPX file was not found:\n{p.GpxPath}", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 Recompute();
                 return;
             }
@@ -304,7 +361,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, $"Nepodarilo sa načítať projekt:\n{ex.Message}", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, $"Could not load the project:\n{ex.Message}", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -313,7 +370,7 @@ public sealed class MainForm : Form
         if (_gpxPath == null) return;
         using var dlg = new SaveFileDialog
         {
-            Filter = "Projekt GPX→Fusion (*.g2f.json)|*.g2f.json",
+            Filter = "GPX→Fusion project (*.g2f.json)|*.g2f.json",
             FileName = Path.GetFileNameWithoutExtension(_gpxPath) + ".g2f.json",
             InitialDirectory = Path.GetDirectoryName(_gpxPath),
         };
@@ -326,7 +383,7 @@ public sealed class MainForm : Form
             LastExportFolder = _lastExportFolder,
             Settings = _settings,
         }.Save(dlg.FileName);
-        _status.Text = $"Projekt uložený: {dlg.FileName}";
+        _status.Text = $"Project saved: {dlg.FileName}";
     }
 
     // =============== added points ===============
@@ -367,33 +424,33 @@ public sealed class MainForm : Form
             _grid.Refresh();
             int n = _settings.ExtraStart.Count + _settings.ExtraEnd.Count;
             if (_preview.ExtendMode != ExtendMode.None)
-                _status.Text = $"Doplnené body: začiatok {_settings.ExtraStart.Count}, koniec {_settings.ExtraEnd.Count}. " + ExtendHint;
+                _status.Text = $"Added points: start {_settings.ExtraStart.Count}, end {_settings.ExtraEnd.Count}. " + ExtendHint;
             else if (n == 0)
-                _status.Text = "Doplnené body zmazané.";
+                _status.Text = "Added points deleted.";
         }
     }
 
-    private const string ExtendHint = "Klik = nový bod, ťahanie = posun, klik na úsek = vložiť bod, pravé tlačidlo = zmazať, Esc = koniec.";
+    private const string ExtendHint = "Click = new point, drag = move, click on a segment = insert point, right button = delete, Esc = done.";
 
     private void SetExtendMode(ExtendMode mode)
     {
-        if (mode != ExtendMode.None && _btnAddLabel.Checked) _btnAddLabel.Checked = false;
+        if (mode != ExtendMode.None && _preview.AddLabelMode) SetAddLabelMode(false);
         _preview.ExtendMode = mode;
-        _miExtendStart.Checked = mode == ExtendMode.Start;
-        _miExtendEnd.Checked = mode == ExtendMode.End;
+        _miExtendStart.Checked = _btnExtendStart.Checked = mode == ExtendMode.Start;
+        _miExtendEnd.Checked = _btnExtendEnd.Checked = mode == ExtendMode.End;
         _btnExtend.Text = mode switch
         {
-            ExtendMode.Start => "Doplniť trasu: ZAČIATOK",
-            ExtendMode.End => "Doplniť trasu: KONIEC",
-            _ => "Doplniť trasu",
+            ExtendMode.Start => "Extend track: START",
+            ExtendMode.End => "Extend track: END",
+            _ => "Extend track",
         };
         _btnExtend.Font = new Font(Font, mode == ExtendMode.None ? FontStyle.Regular : FontStyle.Bold);
         if (mode == ExtendMode.None) return;
-        string where = mode == ExtendMode.Start ? "pred začiatok (od zeleného bodu smerom von)" : "za koniec (od červeného bodu ďalej)";
+        string where = mode == ExtendMode.Start ? "before the start (outward from the green point)" : "after the end (onward from the red point)";
         string crop = mode == ExtendMode.Start && _timeline.Start > 0 || mode == ExtendMode.End && _track != null && _timeline.End < _track.Count - 1
-            ? " ⚠ Trasa je na tomto konci orezaná – doplnené body nebudú v exporte, kým orezanie nezrušíš."
+            ? " ⚠ The track is cropped at this end – added points will not be in the export until you reset the crop."
             : "";
-        _status.Text = $"Doplňovanie {where}. {ExtendHint}{crop}";
+        _status.Text = $"Adding points {where}. {ExtendHint}{crop}";
     }
 
     private void SaveGpxDialog()
@@ -402,25 +459,25 @@ public sealed class MainForm : Form
         using var dlg = new SaveFileDialog
         {
             Filter = "GPX (*.gpx)|*.gpx",
-            FileName = Path.GetFileNameWithoutExtension(_gpxPath) + "_doplnene.gpx",
+            FileName = Path.GetFileNameWithoutExtension(_gpxPath) + "_extended.gpx",
             InitialDirectory = Path.GetDirectoryName(_gpxPath),
-            Title = "Uložiť GPX s doplnenými bodmi",
+            Title = "Save GPX with added points",
         };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
         if (string.Equals(Path.GetFullPath(dlg.FileName), Path.GetFullPath(_gpxPath), StringComparison.OrdinalIgnoreCase))
         {
-            MessageBox.Show(this, "Pôvodný GPX sa neprepisuje (projekt naň odkazuje). Zvoľ iný názov.", Text,
+            MessageBox.Show(this, "The original GPX is not overwritten (the project refers to it). Choose a different name.", Text,
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
         try
         {
             GpxWriter.Write(dlg.FileName, _track.Points, Path.GetFileNameWithoutExtension(dlg.FileName));
-            _status.Text = $"GPX uložený ({_track.Count:N0} bodov, celá trasa bez orezania): {dlg.FileName}";
+            _status.Text = $"GPX saved ({_track.Count:N0} points, full track without crop): {dlg.FileName}";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            MessageBox.Show(this, $"GPX sa nepodarilo uložiť:\n{ex.Message}", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, $"Could not save the GPX:\n{ex.Message}", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -438,7 +495,7 @@ public sealed class MainForm : Form
         _lblEnd.Text = DescribePoint(_timeline.End);
         double secs = _track.CumTime[_timeline.End] - _track.CumTime[_timeline.Start];
         double km = (_track.CumDist[_timeline.End] - _track.CumDist[_timeline.Start]) / 1000;
-        _lblResult.Text = $"Výsledok: {FormatDuration(secs)} · {km:0.00} km";
+        _lblResult.Text = $"Result: {FormatDuration(secs)} · {km:0.00} km";
         Recompute();
     }
 
@@ -456,15 +513,13 @@ public sealed class MainForm : Form
     private void Recompute()
     {
         bool has = _track != null;
-        _btnExport.Enabled = has && _exportCts == null;
-        _btnCopy.Enabled = has;
-        _btnAddLabel.Enabled = has;
-        _btnExtend.Enabled = has;
-        _btnAutoFrame.Enabled = has && _settings.ManualFrame != null;
+        foreach (var it in _needTrack) it.Enabled = has;
+        _btnExport.Enabled = _miExport.Enabled = has && _exportCts == null;
+        _btnAutoFrame.Enabled = _miAutoFrame.Enabled = has && _settings.ManualFrame != null;
         _preview.Settings = _settings;
         if (_track == null)
         {
-            _info.Text = "Žiadna trasa.";
+            _info.Text = "No track.";
             _preview.ExportFrame = null;
             _preview.Invalidate();
             return;
@@ -483,13 +538,68 @@ public sealed class MainForm : Form
         _preview.Invalidate();
 
         double metersPerPx = 156543.03392 * Math.Cos(cropped.Points[0].Lat * Math.PI / 180) / Math.Pow(2, frame.Zoom);
-        string warn = tiles > 2000 ? $"\n⚠ Veľa dlaždíc ({tiles}) – sťahovanie bude trvať dlho, zváž menšie rozlíšenie." : "";
+        string warn = tiles > 2000 ? $"\n⚠ Many tiles ({tiles}) – downloading will take long, consider a smaller resolution." : "";
         _info.Text =
-            $"map.png: {_settings.Width} × {_settings.Height} px, zoom {frame.Zoom:0.00} (dlaždice z{tz}, {tiles} ks)\n" +
-            $"Mierka: {metersPerPx:0.00} m/px\n" +
-            $"Body: {cropped.Count:N0} → po filtri {geo.Full.Count:N0} → polyline {geo.Simplified.Count:N0}\n" +
-            $"Hrúbka čiary: {_settings.LineWidthPx:0.#} px" + warn;
+            $"map.png: {_settings.Width} × {_settings.Height} px, zoom {frame.Zoom:0.00} (tiles z{tz}, {tiles} pcs)\n" +
+            $"Scale: {metersPerPx:0.00} m/px\n" +
+            $"Points: {cropped.Count:N0} → after filter {geo.Full.Count:N0} → polyline {geo.Simplified.Count:N0}\n" +
+            $"Line width: {_settings.LineWidthPx:0.#} px" + warn;
     }
+
+    // =============== view / modes ===============
+
+    private void SetPreviewMode(PreviewMode mode)
+    {
+        _preview.Mode = mode;
+        _btnViewFrame.Checked = _miViewFrame.Checked = mode == PreviewMode.ExportFrame;
+        _btnViewFull.Checked = _miViewFull.Checked = mode == PreviewMode.FullTrack;
+        _preview.Invalidate();
+    }
+
+    private void SetAddLabelMode(bool on)
+    {
+        if (on && _track == null) return;
+        _preview.AddLabelMode = on;
+        _btnAddLabel.Checked = _miAddLabel.Checked = on;
+        if (!on) return;
+        SetExtendMode(ExtendMode.None);
+        _status.Text = "Click in the map where you want the label (Esc = cancel).";
+    }
+
+    private void ResetFrame()
+    {
+        if (_settings.ManualFrame == null) return;
+        _settings.ManualFrame = null;
+        Recompute();
+        _grid.Refresh();
+        _status.Text = "The frame is automatic again (fitted to the cropped track).";
+    }
+
+    private void ResetCrop()
+    {
+        if (_track != null) _timeline.SetRange(0, _track.Count - 1);
+    }
+
+    private void OpenExportFolder()
+    {
+        if (_lastExportFolder != null && Directory.Exists(_lastExportFolder))
+            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{_lastExportFolder}\"") { UseShellExecute = true });
+    }
+
+    private void ShowHelp() => MessageBox.Show(this,
+        "Map (preview)\n" +
+        "  • drag the map / middle button – pan the frame\n" +
+        "  • wheel – zoom the frame (Shift = fine), Ctrl+0 – automatic frame\n" +
+        "  • F5 / F6 – preview the frame / the full track\n\n" +
+        "Labels (Ctrl+L)\n" +
+        "  • click in the map – new label, double-click – edit, drag – move, right button – menu\n\n" +
+        "Extending the track (Edit → Extend track start/end)\n" +
+        "  • click – new point, drag – move, click on a segment – insert point, right button – delete, Esc – done\n\n" +
+        "Crop (timeline at the bottom)\n" +
+        "  • green/red handle, the middle moves the whole selection\n" +
+        "  • arrows ←/→ (Shift = 1 min, Ctrl = 10 min), Home/End switches the handle\n\n" +
+        "File: Ctrl+O open GPX, Ctrl+S save project · Export: Ctrl+E, Ctrl+Shift+C copy .setting",
+        "Controls", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
     /// <summary>The user panned/zoomed the map in the preview: store it as the manual export frame.</summary>
     private void OnFrameChanged(MapFrame frame, bool final)
@@ -500,17 +610,17 @@ public sealed class MainForm : Form
         if (!final) return; // the preview already shows the moved frame; refresh the rest once the drag ends
         Recompute();
         _grid.Refresh();
-        if (wasAuto) _status.Text = "Výrez upravený ručne (ťahanie = posun, koliesko = zoom). 'Auto výrez' vráti automatický.";
+        if (wasAuto) _status.Text = "Frame adjusted manually (drag = pan, wheel = zoom). 'Auto frame' restores automatic.";
     }
 
     // =============== labels ===============
 
     private void AddLabel(double lat, double lon)
     {
-        _btnAddLabel.Checked = false;
+        SetAddLabelMode(false);
         // New labels inherit the style of the last one, so a set of labels stays consistent.
         var label = _settings.Labels.LastOrDefault()?.Clone() ?? new MapLabel();
-        label.Text = "Popis";
+        label.Text = "Label";
         label.Lat = lat;
         label.Lon = lon;
         _settings.Labels.Add(label);
@@ -538,7 +648,7 @@ public sealed class MainForm : Form
         _settings.Labels.Remove(label);
         _preview.Invalidate();
         _grid.Refresh();
-        _status.Text = "Popis zmazaný.";
+        _status.Text = "Label deleted.";
     }
 
     // =============== export ===============
@@ -555,7 +665,7 @@ public sealed class MainForm : Form
         if (_track == null || _exportCts != null) return;
         using var dlg = new FolderBrowserDialog
         {
-            Description = "Priečinok pre map.png, GpxTrack.setting, track.png a track_points.csv",
+            Description = "Folder for map.png, GpxTrack.setting, track.png and track_points.csv",
             UseDescriptionForTitle = true,
             ShowNewFolderButton = true,
         };
@@ -566,7 +676,7 @@ public sealed class MainForm : Form
         string folder = dlg.SelectedPath;
 
         if (File.Exists(Path.Combine(folder, Exporter.MapFileName)) &&
-            MessageBox.Show(this, $"V priečinku už je export. Prepísať?\n{folder}", Text, MessageBoxButtons.OKCancel,
+            MessageBox.Show(this, $"The folder already contains an export. Overwrite?\n{folder}", Text, MessageBoxButtons.OKCancel,
                 MessageBoxIcon.Question) != DialogResult.OK)
             return;
 
@@ -579,23 +689,23 @@ public sealed class MainForm : Form
         {
             var result = await Task.Run(() => Exporter.ExportAsync(cropped, settings, _cache, folder, status, _exportCts.Token));
             _lastExportFolder = folder;
-            _status.Text = $"Hotovo: {folder}";
-            string missing = result.MissingTiles > 0 ? $"\n\n⚠ {result.MissingTiles} dlaždíc sa nepodarilo stiahnuť (sivé miesta). Skús export zopakovať." : "";
+            _status.Text = $"Done: {folder}";
+            string missing = result.MissingTiles > 0 ? $"\n\n⚠ {result.MissingTiles} tiles could not be downloaded (gray areas). Try exporting again." : "";
             var answer = MessageBox.Show(this,
-                $"Export hotový.\n\n{Exporter.MapFileName}, {Exporter.SettingFileName} ({result.PolylinePoints} bodov polyline), " +
-                $"{Exporter.TrackFileName}, {Exporter.CsvFileName}{missing}\n\nOtvoriť priečinok?",
+                $"Export finished.\n\n{Exporter.MapFileName}, {Exporter.SettingFileName} ({result.PolylinePoints} polyline points), " +
+                $"{Exporter.TrackFileName}, {Exporter.CsvFileName}{missing}\n\nOpen the folder?",
                 Text, MessageBoxButtons.YesNo, result.MissingTiles > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
             if (answer == DialogResult.Yes)
                 Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
         }
         catch (OperationCanceledException)
         {
-            _status.Text = "Export zrušený.";
+            _status.Text = "Export canceled.";
         }
         catch (Exception ex)
         {
-            _status.Text = "Export zlyhal.";
-            MessageBox.Show(this, $"Export zlyhal:\n{ex.Message}", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            _status.Text = "Export failed.";
+            MessageBox.Show(this, $"Export failed:\n{ex.Message}", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
@@ -609,7 +719,7 @@ public sealed class MainForm : Form
     {
         _progress.Visible = busy;
         _btnCancel.Visible = busy;
-        _btnExport.Enabled = !busy && _track != null;
+        _btnExport.Enabled = _miExport.Enabled = !busy && _track != null;
         _grid.Enabled = !busy;
         _timeline.Enabled = !busy;
         UseWaitCursor = busy;
@@ -626,8 +736,8 @@ public sealed class MainForm : Form
         else
         {
             var r = MessageBox.Show(this,
-                "map.png ešte nebola exportovaná. Skopírovať aj tak? (Loader bude ukazovať na predvolený priečinok, " +
-                "kým tam map.png neexportuješ.)\n\nOdporúčané: najprv Exportovať…",
+                "map.png has not been exported yet. Copy anyway? (The Loader will point to the default folder " +
+                "until you export map.png there.)\n\nRecommended: Export… first",
                 Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Information);
             if (r != DialogResult.OK) return;
             mapPath = Path.Combine(DefaultExportFolder(), Exporter.MapFileName);
@@ -643,6 +753,6 @@ public sealed class MainForm : Form
             return;
         }
         Clipboard.SetText(setting);
-        _status.Text = "Fusion .setting je v schránke → Resolve → Fusion stránka → Node editor → Ctrl+V";
+        _status.Text = "Fusion .setting is on the clipboard → Resolve → Fusion page → Node editor → Ctrl+V";
     }
 }

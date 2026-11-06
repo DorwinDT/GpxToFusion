@@ -1,91 +1,93 @@
 # GPX → Fusion
 
-WinForms appka (.NET 10), ktorá z GPX trasy vyrobí **mapový podklad + trasu ako Fusion polyline** pre DaVinci Resolve. Animáciu (kreslenie trasy, pohyb kamery) si potom robíš sám keyframami vo Fusion.
+A WinForms app (.NET 10) that turns a GPX track into a **map background + the track as a Fusion polyline** for DaVinci Resolve. You then build the animation (drawing the track, camera moves) yourself with keyframes in Fusion.
 
-## Spustenie
+## Running
 
 ```
 dotnet run --project src/GpxToFusion -- "D:\!!!\Afternoon_Walk.gpx"
 ```
-alebo spusti `GpxToFusion.exe` a GPX otvor tlačidlom / pretiahni do okna.
+or start `GpxToFusion.exe` and open a GPX with the button / drag it into the window.
 
-## Postup
+## Workflow
 
-1. **Otvor GPX.** Dole je časová os s rýchlosťou (žltá) a výškou (modrá).
-2. **Orež trasu.** Zelené ťahadlo je začiatok, červené koniec. Ťahaním stredu posúvaš celý výber. Presné hodnoty nastavíš v poliach *Začiatok/Koniec*. Klávesy: ←/→ = 1 bod, Shift = 60 bodov, Ctrl = 600 bodov, Home/End = výber ťahadla.
-3. **Doplň trasu** (voliteľné, napr. keď si tracker zapol neskôr): **Doplniť trasu → Doplniť začiatok / koniec** a klikaj do mapy. Body sa reťazia od zeleného (začiatok) alebo červeného (koniec) bodu smerom von a spájajú sa rovnými čiarami. **Ťahanie** bodu = posun, **klik na úsek** = vloženie bodu (dá sa hneď ťahať), **pravé tlačidlo** = zmazanie, **Esc** = koniec. Doplnené úseky sú v náhľade prerušovanou čiarou. Čas sa im dopočíta z rýchlosti *5. Doplnené body → Rýchlosť* (0 = priemer v pohybe z GPX), výška sa preberie z krajného bodu. Body sa ukladajú do projektu, pôvodný GPX ostane nedotknutý; *Doplniť trasu → Uložiť GPX ako…* zapíše nový GPX s celou trasou.
-4. **Nastav mapu** (panel vpravo): podklad (OSM / satelit / CARTO), rozlíšenie, okraj, extra oddialenie, stmavenie, farbu a hrúbku čiary.
-   - Náhľad ukazuje presný výrez `map.png`. Prepínač *Náhľad: celá trasa* ukáže celú trasu aj s rámom výrezu.
-   - **Ručný výrez**: v náhľade **ťahaj mapu** myšou (alebo stredným tlačidlom, keď pridávaš popisy či body) a **kolieskom** približuj/odďaľuj (Shift = jemnejšie). V režime *celá trasa* ťaháš priamo rám výrezu. Výrez sa uloží do projektu a ostane, aj keď zmeníš orezanie. Tlačidlo **Auto výrez** vráti automatický výrez podľa trasy (rovnako aj zmena okraja alebo extra oddialenia).
-5. **Popisy na mape** (voliteľné): tlačidlo **Pridať popis** a klik do mapy otvorí okno s textom, fontom, veľkosťou, farbou, obrysom a zarovnaním. V náhľade: **dvojklik** = upraviť, **ťahanie** = posunúť, **pravé tlačidlo** = upraviť/zmazať. Nový popis preberie štýl posledného. Popisy sú naviazané na GPS polohu a ukladajú sa do projektu (*Uložiť projekt…*), takže ich vieš kedykoľvek zmeniť. V *4. Popisy → Výstup popisov* zvolíš:
-   - **Fusion Text+** (predvolené): každý popis je uzol `Label1`, `Label2`… s `MergeLabel1`… Text, font, farbu aj polohu meníš priamo v Resolve a dajú sa animovať (napr. Opacity na `MergeLabelN` → Blend).
-   - **Vpáliť do map.png**: popisy sú priamo v obrázku mapy, presne ako v náhľade.
-6. **Exportovať…** (Ctrl+E) vytvorí v zvolenom priečinku:
+All commands are in the top menu (File, Export, View, Edit); the most common ones are also in the toolbar below it. **F1** shows an overview of mouse controls and keyboard shortcuts.
 
-| súbor | čo to je |
+1. **Open a GPX.** At the bottom there is a timeline with speed (yellow) and elevation (blue).
+2. **Crop the track.** The green handle is the start, the red one the end. Drag the middle to move the whole selection. Set exact values in the *Start/End* fields. Keys: ←/→ = 1 point, Shift = 60 points, Ctrl = 600 points, Home/End = select handle.
+3. **Extend the track** (optional, e.g. when you started the tracker late): **Extend track → Start / End** and click in the map. Points chain outward from the green (start) or red (end) point and are joined by straight lines. **Drag** a point = move, **click on a segment** = insert a point (you can drag it right away), **right button** = delete, **Esc** = done. Added segments are shown as a dashed line in the preview. Their time is computed from *5. Added points → Speed* (0 = moving average from the GPX); elevation is taken from the end point. The points are saved in the project and the original GPX stays untouched; *File → Save GPX with added points…* writes a new GPX with the whole track.
+4. **Set up the map** (panel on the right): base map (OSM / satellite / CARTO), resolution, padding, extra zoom-out, darkening, line color and width.
+   - The preview shows the exact `map.png` frame. The **Full track** button (F6) shows the whole track with the frame outline.
+   - **Manual frame**: in the preview, **drag the map** with the mouse (or with the middle button while adding labels or points) and use the **wheel** to zoom in/out (Shift = finer). In *full track* mode you drag the frame outline directly. The frame is saved in the project and stays even when you change the crop. The **Auto frame** button (Ctrl+0) restores the automatic frame fitted to the track (so does changing padding or extra zoom-out).
+5. **Map labels** (optional): the **Label** button (Ctrl+L) and a click in the map open a window with text, font, size, color, outline and alignment. In the preview: **double-click** = edit, **drag** = move, **right button** = edit/delete. A new label takes over the style of the last one. Labels are anchored to a GPS position and saved in the project (*Save project…*), so you can change them any time. In *4. Labels → Label output* choose:
+   - **Fusion Text+** (default): each label is a `Label1`, `Label2`… node with `MergeLabel1`… Text, font, color and position are changed directly in Resolve and can be animated (e.g. Opacity on `MergeLabelN` → Blend).
+   - **Burn into map.png**: labels are part of the map image, exactly as in the preview.
+6. **Export…** (Ctrl+E) creates in the chosen folder:
+
+| file | what it is |
 |---|---|
-| `map.png` | mapa v zvolenom rozlíšení (bez trasy) |
-| `GpxTrack.setting` | Fusion uzly: Loader s mapou + polyline trasy + farba + Merge |
-| `track.png` | iba trasa na priehľadnom pozadí (rastrová alternatíva) |
-| `track_points.csv` | body polyline: čas, km, pixel, `write_length` (podiel dĺžky) – pomôcka na časovanie keyframov |
+| `map.png` | the map at the chosen resolution (without the track) |
+| `GpxTrack.setting` | Fusion nodes: Loader with the map + track polyline + color + Merge |
+| `track.png` | the track only, on a transparent background (raster alternative) |
+| `track_points.csv` | polyline points: time, km, pixel, `write_length` (fraction of length) – helps with keyframe timing |
 
-Dlaždice sa ukladajú do `%LOCALAPPDATA%\GpxToFusion\tiles`, takže druhý export je okamžitý.
+Tiles are stored in `%LOCALAPPDATA%\GpxToFusion\tiles`, so a second export is instant.
 
-## Import do DaVinci Resolve
+## Importing into DaVinci Resolve
 
-1. Na timeline daj **Fusion Composition** (Effects → Toolbox → Effects → Fusion Composition) alebo otvor Fusion stránku na ľubovoľnom klipe.
-2. Na **Fusion** stránke klikni do Node editora a stlač **Ctrl+V**. Obsah `GpxTrack.setting` vložíš tlačidlom *Kopírovať .setting do schránky*, prípadne súbor pretiahni do Node editora.
-3. Výstup **`MergeCalib`** (alebo `MergeTrack`) pripoj na **`MediaOut1`**.
+1. Put a **Fusion Composition** on the timeline (Effects → Toolbox → Effects → Fusion Composition), or open the Fusion page on any clip.
+2. On the **Fusion** page, click into the Node editor and press **Ctrl+V**. Copy the content of `GpxTrack.setting` with the *Copy .setting* button (Ctrl+Shift+C), or drag the file into the Node editor.
+3. Connect the **`MergeCalib`** (or `MergeTrack`) output to **`MediaOut1`**.
 
-### Uzly
+### Nodes
 
 ```
 MapLoader ──────────────┐
-TrackPath ─► TrackColor ─┴► MergeTrack ─► MergeCalib (vypnutý) ─► MediaOut1
+TrackPath ─► TrackColor ─┴► MergeTrack ─► MergeCalib (disabled) ─► MediaOut1
 ```
 
-- **TrackPath** (Polygon/PolylineMask) je trasa. Animácia: Inspector → *Controls* → **Write On** (Length / Position) a keyframe 0 → 1. Ak bola pri exporte zapnutá voľba *Pridať keyframy*, animácia už je pripravená (lineárne alebo podľa reálneho GPX času). So zapnutým *Prispôsobiť dĺžke klipu* (predvolené) je na Write Length výraz namiesto keyframov: animácia vždy trvá celú dĺžku Fusion klipu, takže kratší klip = rýchlejšie kreslenie, dlhší = pomalšie. Kedy trasa začne a kedy dobehne, nastavíš na uzle *TrackPath* → Inspector → *Controls* → **Start Delay (frames)** a **End Hold (frames)** (predvolené hodnoty sú z nastavení exportu).
-- **Obrázok na čele čiary** (napr. vláčik): v appke nastav *Trasa → Obrázok na čele čiary* (PNG s priehľadným pozadím) a *Veľkosť obrázka*. V .setting pribudnú uzly `MarkerLoader`, `MarkerPath` (Path s rovnakými bodmi ako trasa) a `MergeMarker`. *Displacement* na `MarkerPath` je výraz odvodený z `TrackPath.WriteLength`, takže obrázok ide vždy s koncom čiary, nech animuješ Write Length akokoľvek. Výraz prepočítava dĺžku trasy, lebo maska ju meria v pixeloch a Path v normalizovaných súradniciach. Ak by obrázok predsa len predbiehal alebo zaostával, skús `MarkerPath` → *Inspector → Controls → Path Sync* (predvolené *Mask px / Path normalized*; *Off* = pôvodné správanie). Veľkosť a natočenie zmeníš na `MergeMarker` → *Size* / *Angle*. Výstup potom berieš z `MergeMarker` (alebo `MergeCalib`).
-- **TrackPath → Border Width** je hrúbka čiary. Ak je čiara iná ako v náhľade, uprav ju tu.
-- **TrackColor** (Background) je farba čiary.
-- **Kamera / zoom**: za `MergeTrack` vlož **Transform** a keyframuj *Center* a *Size*. Exportuj väčšiu mapu (8K alebo *Extra oddialenie* 0.5–1), aby pri zoome nebolo vidieť pixely a bolo kam posúvať.
-- Mapa je väčšia ako timeline (napr. 4K na HD timeline)? Fusion pracuje v rozlíšení mapy a MediaOut ju na timeline zmenší. Prípadne pridaj Resize/Transform.
+- **TrackPath** (Polygon/PolylineMask) is the track. Animation: Inspector → *Controls* → **Write On** (Length / Position) and a keyframe 0 → 1. If *Add Write Length keyframes* was on at export, the animation is already set up (linear or by real GPX time). With *Fit to clip length* on (default), Write Length has an expression instead of keyframes: the animation always spans the whole Fusion clip, so a shorter clip = faster drawing, a longer one = slower. When the track starts and when it finishes is set on the *TrackPath* node → Inspector → *Controls* → **Start Delay (frames)** and **End Hold (frames)** (defaults come from the export settings).
+- **Image at line head** (e.g. a little train): in the app set *Track → Image at line head* (PNG with a transparent background) and *Image size*. The .setting gets `MarkerLoader`, `MarkerPath` (a Path with the same points as the track) and `MergeMarker` nodes. *Displacement* on `MarkerPath` is an expression derived from `TrackPath.WriteLength`, so the image always follows the end of the line however you animate Write Length. The expression remaps the track length because the mask measures it in pixels and the Path in normalized coordinates. If the image still runs ahead or lags, try `MarkerPath` → *Inspector → Controls → Path Sync* (default *Mask px / Path normalized*; *Off* = the original behavior). Change size and rotation on `MergeMarker` → *Size* / *Angle*. Then take the output from `MergeMarker` (or `MergeCalib`).
+- **TrackPath → Border Width** is the line width. If the line differs from the preview, adjust it here.
+- **TrackColor** (Background) is the line color.
+- **Camera / zoom**: insert a **Transform** after `MergeTrack` and keyframe *Center* and *Size*. Export a larger map (8K or *Extra zoom-out* 0.5–1) so pixels don't show when zooming and there is room to pan.
+- Is the map larger than the timeline (e.g. 4K on an HD timeline)? Fusion works at the map resolution and MediaOut scales it down on the timeline. Optionally add Resize/Transform.
 
-### Kalibrácia (prvé použitie)
+### Calibration (first use)
 
-Uzol **MergeCalib** je vypnutý (PassThrough). Zapni ho (vyber ho a stlač Ctrl+P). Mal by sa zobraziť **fialový rámik 10 px od okrajov mapy**.
-- Rámik sedí na okrajoch → súradnice sú správne a trasa sedí na cestách.
-- Rámik nesedí → treba upraviť jedinú funkciu `FusionCoords.ToPolyline` v `src/GpxToFusion/Export/FusionCoords.cs`.
+The **MergeCalib** node is disabled (PassThrough). Enable it (select it and press Ctrl+P). A **magenta rectangle 10 px inside the map edges** should appear.
+- The rectangle sits on the edges → coordinates are correct and the track lines up with the roads.
+- The rectangle doesn't fit → the single function `FusionCoords.ToPolyline` in `src/GpxToFusion/Export/FusionCoords.cs` needs adjusting.
 
-### Čierny obraz → diagnostika
+### Black image → diagnostics
 
-Vo Fusion vyber uzol a stlač **1**, tým ho zobrazíš vo vieweri:
-- `MapLoader` je čierny alebo červený → Loader nenačítal `map.png` (skontroluj cestu v Inspectore → File) alebo mapa nie je na aktuálnom frame (Inspector → *Hold First Frame / Hold Last Frame*).
-- `TrackColor` ukazuje čiaru, ale `MergeTrack` je čierny → Merge nemá pozadie, problém je v mape.
+In Fusion, select a node and press **1** to show it in the viewer:
+- `MapLoader` is black or red → the Loader did not load `map.png` (check the path in Inspector → File) or the map is not on the current frame (Inspector → *Hold First Frame / Hold Last Frame*).
+- `TrackColor` shows the line but `MergeTrack` is black → the Merge has no background, the problem is the map.
 
-### Spoľahlivá alternatíva: MediaIn (bez Loadera)
+### Reliable alternative: MediaIn (no Loader)
 
-1. V appke nastav **Fusion → Zdroj mapy vo Fusion = MediaIn1** a exportuj.
-2. `map.png` naimportuj do Media Poolu a polož na timeline. Roztiahni ho na požadovanú dĺžku.
-3. Na tom klipe otvor stránku **Fusion**. Je tam `MediaIn1 → MediaOut1`.
-4. Ctrl+V. Ak sa `MediaIn1` nepripojí sám, potiahni jeho výstup na žltý (Background) vstup `MergeTrack`.
-5. `MergeCalib` pripoj na `MediaOut1`.
+1. In the app set **Fusion → Map source in Fusion = MediaIn1** and export.
+2. Import `map.png` into the Media Pool and put it on the timeline. Stretch it to the desired length.
+3. Open the **Fusion** page on that clip. It contains `MediaIn1 → MediaOut1`.
+4. Ctrl+V. If `MediaIn1` doesn't connect by itself, drag its output to the yellow (Background) input of `MergeTrack`.
+5. Connect `MergeCalib` to `MediaOut1`.
 
-## Mapové podklady a licencie
+## Map sources and licenses
 
-- OpenStreetMap: © OpenStreetMap contributors (dodržuj [tile usage policy](https://operations.osmfoundation.org/policies/tiles/), appka sťahuje max. 2 dlaždice naraz a cachuje ich)
+- OpenStreetMap: © OpenStreetMap contributors (follow the [tile usage policy](https://operations.osmfoundation.org/policies/tiles/); the app downloads at most 2 tiles at a time and caches them)
 - Esri World Imagery: Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics
 - CARTO: © OpenStreetMap contributors © CARTO
 
-Attribution text sa štandardne vpisuje do `map.png` (dá sa vypnúť).
+The attribution text is written into `map.png` by default (can be turned off).
 
-## Vývoj
+## Development
 
 ```
 dotnet build
 dotnet test
-# test s reálnym sťahovaním dlaždíc:
+# test with real tile downloads:
 set GPX2FUSION_E2E_OUT=C:\temp\e2e && dotnet test --filter EndToEnd
 ```
 
-Štruktúra: `Gpx/` (parser, Track), `Geo/` (Web Mercator), `Map/` (dlaždice, výrez, skladanie), `Export/` (nastavenia, zjednodušenie, Fusion writer, exporter), `UI/` (MainForm, CropTimeline, MapPreview).
+Structure: `Gpx/` (parser, Track), `Geo/` (Web Mercator), `Map/` (tiles, frame, composing), `Export/` (settings, simplification, Fusion writer, exporter), `UI/` (MainForm, CropTimeline, MapPreview).

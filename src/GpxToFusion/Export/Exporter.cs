@@ -22,9 +22,9 @@ public static class Exporter
         if (marker != null)
         {
             if (!File.Exists(marker))
-                throw new FileNotFoundException($"Obrázok na čele čiary neexistuje:\n{marker}", marker);
+                throw new FileNotFoundException($"Line head image does not exist:\n{marker}", marker);
             using var codec = SKCodec.Create(marker)
-                ?? throw new InvalidDataException($"Obrázok na čele čiary sa nedá načítať:\n{marker}");
+                ?? throw new InvalidDataException($"Line head image cannot be loaded:\n{marker}");
             // Merge keeps the foreground's pixel size, so Size = wanted px / image px.
             markerSize = s.MarkerSizePx / Math.Max(1, Math.Max(codec.Info.Width, codec.Info.Height));
         }
@@ -66,11 +66,11 @@ public static class Exporter
         int tz = frame.TileZoom(src.MaxZoom);
         var tiles = frame.Tiles(tz);
 
-        var tileProgress = new Progress<(int Done, int Total)>(p => status?.Report($"Sťahujem mapové dlaždice {p.Done}/{p.Total}…"));
+        var tileProgress = new Progress<(int Done, int Total)>(p => status?.Report($"Downloading map tiles {p.Done}/{p.Total}…"));
         await cache.PrefetchWithFallbackAsync(src, tiles, tileProgress, ct).ConfigureAwait(false);
 
         ct.ThrowIfCancellationRequested();
-        status?.Report("Skladám map.png…");
+        status?.Report("Composing map.png…");
         int missing;
         using (var bmp = MapComposer.RenderMap(frame, src, cache, s.DarkenPercent, s.DrawAttribution, out missing))
         {

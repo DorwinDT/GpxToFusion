@@ -15,7 +15,7 @@ public sealed record TileSource(string Key, string Name, string UrlTemplate, str
     public static readonly TileSource OpenStreetMap = new("osm", "OpenStreetMap",
         "https://tile.openstreetmap.org/{z}/{x}/{y}.png", [], 19, "© OpenStreetMap contributors");
 
-    public static readonly TileSource EsriImagery = new("esri-imagery", "Esri World Imagery (satelit)",
+    public static readonly TileSource EsriImagery = new("esri-imagery", "Esri World Imagery (satellite)",
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false", [], 19, // blankTile=false: 404 instead of a "Map data not yet available" image
         "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics");
 

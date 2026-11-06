@@ -111,7 +111,7 @@ public sealed class CropTimeline : Control
 
         if (_track == null || _track.Count < 2)
         {
-            TextRenderer.DrawText(g, "Otvor GPX súbor (alebo ho pretiahni do okna)", Font, ClientRectangle, Color.Gray,
+            TextRenderer.DrawText(g, "Open a GPX file (or drag it into the window)", Font, ClientRectangle, Color.Gray,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             return;
         }
@@ -152,8 +152,8 @@ public sealed class CropTimeline : Control
             var size = TextRenderer.MeasureText(s, font);
             TextRenderer.DrawText(g, s, font, new Point((int)(x - size.Width / 2f), plot.Bottom + 2), Color.Silver);
         }
-        TextRenderer.DrawText(g, "rýchlosť", font, new Point(plot.Left + 2, plot.Top), Color.FromArgb(255, 200, 80));
-        TextRenderer.DrawText(g, "výška", font, new Point(plot.Left + 60, plot.Top), Color.FromArgb(120, 160, 220));
+        TextRenderer.DrawText(g, "speed", font, new Point(plot.Left + 2, plot.Top), Color.FromArgb(255, 200, 80));
+        TextRenderer.DrawText(g, "elevation", font, new Point(plot.Left + 60, plot.Top), Color.FromArgb(120, 160, 220));
     }
 
     private void DrawSeries(Graphics g, Rectangle plot, float[] data, Color color, bool fill, float? clipMax = null)

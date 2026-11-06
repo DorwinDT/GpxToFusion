@@ -8,7 +8,7 @@ public sealed class ImageFileNameEditor : FileNameEditor
     protected override void InitializeDialog(OpenFileDialog openFileDialog)
     {
         base.InitializeDialog(openFileDialog);
-        openFileDialog.Title = "Obrázok na čele čiary";
-        openFileDialog.Filter = "Obrázky (*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.bmp;*.tga)|*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.bmp;*.tga|Všetky súbory|*.*";
+        openFileDialog.Title = "Image at line head";
+        openFileDialog.Filter = "Images (*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.bmp;*.tga)|*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.bmp;*.tga|All files|*.*";
     }
 }

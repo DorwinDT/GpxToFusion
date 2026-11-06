@@ -11,16 +11,16 @@ namespace GpxToFusion.Export;
 public enum MapStyle
 {
     [Description("OpenStreetMap")] OpenStreetMap,
-    [Description("Satelit (Esri World Imagery)")] Satellite,
-    [Description("CARTO tmavá")] CartoDark,
-    [Description("CARTO svetlá")] CartoLight,
+    [Description("Satellite (Esri World Imagery)")] Satellite,
+    [Description("CARTO dark")] CartoDark,
+    [Description("CARTO light")] CartoLight,
 }
 
 [TypeConverter(typeof(EnumDescriptionConverter<FusionMapSource>))]
 public enum FusionMapSource
 {
-    [Description("Loader (map.png zo súboru)")] Loader,
-    [Description("MediaIn1 (map.png na timeline)")] MediaIn,
+    [Description("Loader (map.png from file)")] Loader,
+    [Description("MediaIn1 (map.png on the timeline)")] MediaIn,
 }
 
 [TypeConverter(typeof(EnumDescriptionConverter<ResolutionPreset>))]
@@ -29,10 +29,10 @@ public enum ResolutionPreset
     [Description("1920 × 1080 (HD)")] HD_1920x1080,
     [Description("3840 × 2160 (4K UHD)")] UHD_3840x2160,
     [Description("7680 × 4320 (8K)")] UHD8K_7680x4320,
-    [Description("1080 × 1920 (vertikálne)")] Vertical_1080x1920,
-    [Description("2160 × 3840 (vertikálne 4K)")] Vertical_2160x3840,
-    [Description("1080 × 1080 (štvorec)")] Square_1080,
-    [Description("Vlastné")] Custom,
+    [Description("1080 × 1920 (vertical)")] Vertical_1080x1920,
+    [Description("2160 × 3840 (vertical 4K)")] Vertical_2160x3840,
+    [Description("1080 × 1080 (square)")] Square_1080,
+    [Description("Custom")] Custom,
 }
 
 /// <summary>All user-adjustable settings. Shown in a PropertyGrid and saved in the project file.</summary>
@@ -42,12 +42,12 @@ public sealed class ExportSettings
     private int _width = 3840;
     private int _height = 2160;
 
-    // ---------------- Mapa ----------------
+    // ---------------- Map ----------------
 
-    [Category("1. Mapa"), DisplayName("Podklad"), Description("Zdroj mapových dlaždíc.")]
+    [Category("1. Map"), DisplayName("Base map"), Description("Map tile source.")]
     public MapStyle Style { get; set; } = MapStyle.OpenStreetMap;
 
-    [Category("1. Mapa"), DisplayName("Rozlíšenie"), Description("Rozlíšenie map.png. Pre neskorší zoom/posun v Resolve zvoľ väčšie (8K).")]
+    [Category("1. Map"), DisplayName("Resolution"), Description("Resolution of map.png. Pick a larger one (8K) if you want to zoom/pan in Resolve later.")]
     [RefreshProperties(RefreshProperties.All)]
     public ResolutionPreset Resolution
     {
@@ -60,7 +60,7 @@ public sealed class ExportSettings
         }
     }
 
-    [Category("1. Mapa"), DisplayName("Šírka (px)"), Description("Šírka map.png. Zmenou sa preset prepne na Custom.")]
+    [Category("1. Map"), DisplayName("Width (px)"), Description("Width of map.png. Changing it switches the preset to Custom.")]
     [RefreshProperties(RefreshProperties.All)]
     public int Width
     {
@@ -68,7 +68,7 @@ public sealed class ExportSettings
         set { _width = Math.Clamp(value, 64, 16384); SyncPreset(); }
     }
 
-    [Category("1. Mapa"), DisplayName("Výška (px)"), Description("Výška map.png. Zmenou sa preset prepne na Custom.")]
+    [Category("1. Map"), DisplayName("Height (px)"), Description("Height of map.png. Changing it switches the preset to Custom.")]
     [RefreshProperties(RefreshProperties.All)]
     public int Height
     {
@@ -76,31 +76,31 @@ public sealed class ExportSettings
         set { _height = Math.Clamp(value, 64, 16384); SyncPreset(); }
     }
 
-    [Category("1. Mapa"), DisplayName("Okraj (%)"), Description("Voľné miesto okolo trasy na každej strane.")]
+    [Category("1. Map"), DisplayName("Padding (%)"), Description("Free space around the track on each side.")]
     public double PaddingPercent { get; set; } = 10;
 
-    [Category("1. Mapa"), DisplayName("Extra oddialenie (zoom úrovne)"),
-     Description("0 = trasa vyplní záber. 1 = mapa pokryje 2× väčšie územie (na posun/zoom v Resolve). Môže byť desatinné.")]
+    [Category("1. Map"), DisplayName("Extra zoom-out (zoom levels)"),
+     Description("0 = the track fills the frame. 1 = the map covers a 2× larger area (for panning/zooming in Resolve). Can be fractional.")]
     public double ExtraZoomOut { get; set; } = 0;
 
-    [Category("1. Mapa"), DisplayName("Výrez"),
-     Description("Automatický = podľa orezanej trasy, okraja a oddialenia. Ručný = v náhľade si mapu posunieš ťahaním a priblížiš kolieskom myši (Shift = jemne). Tlačidlo 'Auto výrez' vráti automatický.")]
+    [Category("1. Map"), DisplayName("Frame"),
+     Description("Automatic = fitted to the cropped track, padding and zoom-out. Manual = pan the map in the preview by dragging and zoom with the mouse wheel (Shift = fine). The 'Auto frame' button restores automatic.")]
     [JsonIgnore]
-    public string ManualFrameInfo => ManualFrame == null ? "automatický" : $"ručný (zoom {ManualFrame.Zoom:0.00})";
+    public string ManualFrameInfo => ManualFrame == null ? "automatic" : $"manual (zoom {ManualFrame.Zoom:0.00})";
 
     /// <summary>Frame set by panning/zooming the preview; null = fit to the cropped track.</summary>
     [Browsable(false)]
     public FrameOverride? ManualFrame { get; set; }
 
-    [Category("1. Mapa"), DisplayName("Stmavenie mapy (%)"), Description("Čierny overlay cez mapu (0–80 %). Hodí sa najmä pri satelite.")]
+    [Category("1. Map"), DisplayName("Darken map (%)"), Description("Black overlay over the map (0–80 %). Useful mainly with satellite imagery.")]
     public int DarkenPercent { get; set; } = 0;
 
-    [Category("1. Mapa"), DisplayName("Attribution text"), Description("Vpísať do map.png text o autorských právach k mapovým dátam.")]
+    [Category("1. Map"), DisplayName("Attribution text"), Description("Write the map data copyright notice into map.png.")]
     public bool DrawAttribution { get; set; } = true;
 
-    // ---------------- Trasa ----------------
+    // ---------------- Track ----------------
 
-    [Category("2. Trasa"), DisplayName("Farba čiary")]
+    [Category("2. Track"), DisplayName("Line color")]
     [JsonIgnore]
     public Color LineColor { get; set; } = Color.FromArgb(0xFF, 0x5A, 0x1F);
 
@@ -111,39 +111,39 @@ public sealed class ExportSettings
         set { try { LineColor = ColorTranslator.FromHtml(value); } catch { /* keep default */ } }
     }
 
-    [Category("2. Trasa"), DisplayName("Hrúbka čiary (px pri 1080p)"), Description("Pri inom rozlíšení sa škáluje podľa výšky (4K → 2×).")]
+    [Category("2. Track"), DisplayName("Line width (px at 1080p)"), Description("Scaled by height at other resolutions (4K → 2×).")]
     public double LineWidth1080 { get; set; } = 6;
 
-    [Category("2. Trasa"), DisplayName("Zjednodušenie (px)"),
-     Description("Tolerancia Douglas–Peucker v pixeloch map.png. Väčšie = menej bodov vo Fusion polyline.")]
+    [Category("2. Track"), DisplayName("Simplification (px)"),
+     Description("Douglas–Peucker tolerance in map.png pixels. Larger = fewer points in the Fusion polyline.")]
     public double SimplifyTolerancePx { get; set; } = 0.5;
 
-    [Category("2. Trasa"), DisplayName("Filter GPS šumu (m)"), Description("Vynechá body bližšie než X metrov k predchádzajúcemu (státie). 0 = vypnuté.")]
+    [Category("2. Track"), DisplayName("GPS noise filter (m)"), Description("Skips points closer than X meters to the previous one (standing still). 0 = off.")]
     public double MinPointDistanceM { get; set; } = 0.5;
 
-    [Category("2. Trasa"), DisplayName("Obrázok na čele čiary"),
-     Description("Obrázok (napr. vláčik), ktorý sa vo Fusion posúva po trase spolu s koncom kreslenej čiary. PNG s priehľadným pozadím. Prázdne = bez obrázka.")]
+    [Category("2. Track"), DisplayName("Image at line head"),
+     Description("An image (e.g. a little train) that moves along the track in Fusion together with the end of the drawn line. PNG with a transparent background. Empty = no image.")]
     [Editor(typeof(ImageFileNameEditor), typeof(System.Drawing.Design.UITypeEditor))]
     public string MarkerImagePath { get; set; } = "";
 
-    [Category("2. Trasa"), DisplayName("Veľkosť obrázka (px pri 1080p)"),
-     Description("Dlhšia strana obrázka v pixeloch pri 1080p. Pri inom rozlíšení sa škáluje podľa výšky. Vo Fusion: MergeMarker → Size.")]
+    [Category("2. Track"), DisplayName("Image size (px at 1080p)"),
+     Description("Longer side of the image in pixels at 1080p. Scaled by height at other resolutions. In Fusion: MergeMarker → Size.")]
     public double MarkerSize1080 { get; set; } = 60;
 
-    // ---------------- Doplnené body ----------------
+    // ---------------- Added points ----------------
 
-    [Category("5. Doplnené body"), DisplayName("Rýchlosť doplnených úsekov (km/h)"),
-     Description("Body doplnené na začiatok/koniec trasy nemajú čas z trackera. Dopočíta sa z tejto rýchlosti. 0 = priemerná rýchlosť v pohybe z GPX.")]
+    [Category("5. Added points"), DisplayName("Speed of added segments (km/h)"),
+     Description("Points added before the start / after the end have no tracker time. It is computed from this speed. 0 = moving average speed from the GPX.")]
     public double ExtensionSpeedKmh { get; set; } = 0;
 
-    [Category("5. Doplnené body"), DisplayName("Doplnený začiatok"),
-     Description("Body pridáš cez 'Doplniť trasu' a klikaním do náhľadu. Ťahanie = posunúť, klik na úsek = vložiť bod, pravé tlačidlo = zmazať.")]
+    [Category("5. Added points"), DisplayName("Added start"),
+     Description("Add points via 'Extend track' and clicking in the preview. Drag = move, click on a segment = insert point, right button = delete.")]
     [JsonIgnore]
-    public string ExtraStartInfo => ExtraStart.Count == 0 ? "žiadny" : $"{ExtraStart.Count} b.";
+    public string ExtraStartInfo => ExtraStart.Count == 0 ? "none" : $"{ExtraStart.Count} pt.";
 
-    [Category("5. Doplnené body"), DisplayName("Doplnený koniec"), Description("Pozri 'Doplnený začiatok'.")]
+    [Category("5. Added points"), DisplayName("Added end"), Description("See 'Added start'.")]
     [JsonIgnore]
-    public string ExtraEndInfo => ExtraEnd.Count == 0 ? "žiadny" : $"{ExtraEnd.Count} b.";
+    public string ExtraEndInfo => ExtraEnd.Count == 0 ? "none" : $"{ExtraEnd.Count} pt.";
 
     /// <summary>Points added before the recorded start, index 0 = next to the first recorded point.</summary>
     [Browsable(false)]
@@ -153,52 +153,52 @@ public sealed class ExportSettings
     [Browsable(false)]
     public List<GeoPoint> ExtraEnd { get; set; } = [];
 
-    // ---------------- Popisy ----------------
+    // ---------------- Labels ----------------
 
-    [Category("4. Popisy"), DisplayName("Výstup popisov"),
-     Description("Fusion Text+ = každý popis je samostatný Text+ uzol, text, font aj polohu zmeníš v Resolve. Vpáliť do map.png = popisy sú súčasťou obrázka mapy, presne ako v náhľade.")]
+    [Category("4. Labels"), DisplayName("Label output"),
+     Description("Fusion Text+ = each label is a separate Text+ node; change text, font and position in Resolve. Burn into map.png = labels are part of the map image, exactly as in the preview.")]
     public LabelTarget LabelOutput { get; set; } = LabelTarget.FusionText;
 
-    [Category("4. Popisy"), DisplayName("Počet popisov"),
-     Description("Popis pridáš tlačidlom 'Pridať popis' a klikom do náhľadu. Dvojklik = upraviť, ťahanie = posunúť, pravé tlačidlo = menu.")]
+    [Category("4. Labels"), DisplayName("Label count"),
+     Description("Add a label with the 'Add label' button and a click in the preview. Double-click = edit, drag = move, right button = menu.")]
     [JsonIgnore]
-    public string LabelCountInfo => Labels.Count == 0 ? "žiadne" : Labels.Count.ToString();
+    public string LabelCountInfo => Labels.Count == 0 ? "none" : Labels.Count.ToString();
 
     [Browsable(false)]
     public List<MapLabel> Labels { get; set; } = [];
 
     // ---------------- Fusion ----------------
 
-    [Category("3. Fusion"), DisplayName("Zdroj mapy vo Fusion"),
-     Description("Loader = .setting načíta map.png zo súboru. MediaIn1 = map.png si dáš na timeline, otvoríš na ňom Fusion a .setting sa napojí na MediaIn1 (najspoľahlivejšie).")]
+    [Category("3. Fusion"), DisplayName("Map source in Fusion"),
+     Description("Loader = the .setting loads map.png from file. MediaIn1 = put map.png on the timeline, open Fusion on it and the .setting connects to MediaIn1 (most reliable).")]
     public FusionMapSource MapSource { get; set; } = FusionMapSource.Loader;
 
-    [Category("3. Fusion"), DisplayName("Pridať keyframy Write Length"),
-     Description("Vytvorí úvodnú animáciu kreslenia trasy (0 → 1). Ak vypnuté, trasa je celá a animuješ si ju sám.")]
+    [Category("3. Fusion"), DisplayName("Add Write Length keyframes"),
+     Description("Creates an intro animation drawing the track (0 → 1). If off, the track is complete and you animate it yourself.")]
     public bool AddKeyframes { get; set; } = false;
 
-    [Category("3. Fusion"), DisplayName("Prispôsobiť dĺžke klipu"),
-     Description("Animácia sa natiahne na celú dĺžku Fusion klipu (výraz s comp.RenderStart/RenderEnd namiesto keyframov). Skrátiš/predĺžiš klip na timeline → trasa sa kreslí rýchlejšie/pomalšie a vždy skončí na poslednom frame.")]
+    [Category("3. Fusion"), DisplayName("Fit to clip length"),
+     Description("The animation stretches over the whole Fusion clip (an expression using comp.RenderStart/RenderEnd instead of keyframes). Shorten/lengthen the clip on the timeline → the track draws faster/slower and always finishes on the last frame.")]
     public bool KeyframesFitClip { get; set; } = true;
 
-    [Category("3. Fusion"), DisplayName("Dĺžka animácie (framy)"),
-     Description("Použije sa len keď je vypnuté 'Prispôsobiť dĺžke klipu'.")]
+    [Category("3. Fusion"), DisplayName("Animation length (frames)"),
+     Description("Used only when 'Fit to clip length' is off.")]
     public int KeyframeFrames { get; set; } = 600;
 
-    [Category("3. Fusion"), DisplayName("Oneskorenie začiatku (framy)"),
-     Description("Koľko framov od začiatku klipu je trasa ešte skrytá. Pri 'Prispôsobiť dĺžke klipu' sa dá meniť aj vo Fusion: TrackPath → Inspector → Controls → Start Delay.")]
+    [Category("3. Fusion"), DisplayName("Start delay (frames)"),
+     Description("How many frames from the clip start the track stays hidden. With 'Fit to clip length' it can also be changed in Fusion: TrackPath → Inspector → Controls → Start Delay.")]
     public int AnimStartDelayFrames { get; set; } = 0;
 
-    [Category("3. Fusion"), DisplayName("Rezerva na konci (framy)"),
-     Description("Trasa dobehne toľko framov pred koncom klipu a potom ostane celá. Len pri 'Prispôsobiť dĺžke klipu'; vo Fusion: TrackPath → Controls → End Hold.")]
+    [Category("3. Fusion"), DisplayName("End hold (frames)"),
+     Description("The track finishes this many frames before the clip end and then stays complete. Only with 'Fit to clip length'; in Fusion: TrackPath → Controls → End Hold.")]
     public int AnimEndHoldFrames { get; set; } = 0;
 
-    [Category("3. Fusion"), DisplayName("Časovať podľa GPX času"),
-     Description("Trasa pribúda reálnym tempom (vrátane prestávok). Inak lineárne podľa dĺžky.")]
+    [Category("3. Fusion"), DisplayName("Time by GPX time"),
+     Description("The track grows at the real pace (including pauses). Otherwise linearly by length.")]
     public bool KeyframesByTime { get; set; } = true;
 
-    [Category("3. Fusion"), DisplayName("Kalibračný rámik"),
-     Description("Pridá vypnutý (PassThrough) uzol s rámikom 10 px od okrajov mapy – na overenie, že polyline sedí na mape.")]
+    [Category("3. Fusion"), DisplayName("Calibration frame"),
+     Description("Adds a disabled (PassThrough) node with a rectangle 10 px inside the map edges – to verify that the polyline lines up with the map.")]
     public bool AddCalibrationFrame { get; set; } = true;
 
     // ---------------- helpers ----------------

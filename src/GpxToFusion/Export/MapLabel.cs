@@ -11,16 +11,16 @@ namespace GpxToFusion.Export;
 [TypeConverter(typeof(EnumDescriptionConverter<LabelAlign>))]
 public enum LabelAlign
 {
-    [Description("Vľavo (text začína v bode)")] Left,
-    [Description("Na stred")] Center,
-    [Description("Vpravo (text končí v bode)")] Right,
+    [Description("Left (text starts at the point)")] Left,
+    [Description("Center")] Center,
+    [Description("Right (text ends at the point)")] Right,
 }
 
 [TypeConverter(typeof(EnumDescriptionConverter<LabelTarget>))]
 public enum LabelTarget
 {
-    [Description("Fusion Text+ (dá sa meniť v Resolve)")] FusionText,
-    [Description("Vpáliť do map.png")] MapPng,
+    [Description("Fusion Text+ (editable in Resolve)")] FusionText,
+    [Description("Burn into map.png")] MapPng,
 }
 
 /// <summary>
@@ -29,27 +29,27 @@ public enum LabelTarget
 /// </summary>
 public sealed class MapLabel
 {
-    [Category("1. Text"), DisplayName("Text"), Description("Text popisu. Viac riadkov: klikni na šípku vpravo.")]
+    [Category("1. Text"), DisplayName("Text"), Description("Label text. Multiple lines: click the arrow on the right.")]
     [Editor(typeof(MultilineStringEditor), typeof(UITypeEditor))]
-    public string Text { get; set; } = "Popis";
+    public string Text { get; set; } = "Label";
 
-    [Category("1. Text"), DisplayName("Zarovnanie"), Description("Ako text leží voči bodu, na ktorý si klikol.")]
+    [Category("1. Text"), DisplayName("Alignment"), Description("How the text sits relative to the point you clicked.")]
     public LabelAlign Align { get; set; } = LabelAlign.Center;
 
-    [Category("2. Písmo"), DisplayName("Font"), Description("Nainštalovaný font. Vo Fusion musí byť ten istý font dostupný.")]
+    [Category("2. Font"), DisplayName("Font"), Description("Installed font. The same font must be available in Fusion.")]
     [TypeConverter(typeof(FontNameConverter))]
     public string FontName { get; set; } = "Segoe UI";
 
-    [Category("2. Písmo"), DisplayName("Veľkosť (px pri 1080p)"), Description("Pri inom rozlíšení sa škáluje podľa výšky (4K → 2×).")]
+    [Category("2. Font"), DisplayName("Size (px at 1080p)"), Description("Scaled by height at other resolutions (4K → 2×).")]
     public double FontSize1080 { get; set; } = 40;
 
-    [Category("2. Písmo"), DisplayName("Tučné")]
+    [Category("2. Font"), DisplayName("Bold")]
     public bool Bold { get; set; } = true;
 
-    [Category("2. Písmo"), DisplayName("Kurzíva")]
+    [Category("2. Font"), DisplayName("Italic")]
     public bool Italic { get; set; }
 
-    [Category("2. Písmo"), DisplayName("Farba textu")]
+    [Category("2. Font"), DisplayName("Text color")]
     [JsonIgnore]
     public Color TextColor { get; set; } = Color.White;
 
@@ -60,10 +60,10 @@ public sealed class MapLabel
         set => TextColor = FromHex(value, TextColor);
     }
 
-    [Category("3. Obrys"), DisplayName("Hrúbka obrysu (px pri 1080p)"), Description("0 = bez obrysu. Obrys pomáha čitateľnosti na mape.")]
+    [Category("3. Outline"), DisplayName("Outline width (px at 1080p)"), Description("0 = no outline. An outline helps readability on the map.")]
     public double OutlineWidth1080 { get; set; } = 3;
 
-    [Category("3. Obrys"), DisplayName("Farba obrysu")]
+    [Category("3. Outline"), DisplayName("Outline color")]
     [JsonIgnore]
     public Color OutlineColor { get; set; } = Color.Black;
 
@@ -74,10 +74,10 @@ public sealed class MapLabel
         set => OutlineColor = FromHex(value, OutlineColor);
     }
 
-    [Category("4. Poloha"), DisplayName("Zemepisná šírka"), Description("Dá sa meniť aj ťahaním popisu v náhľade.")]
+    [Category("4. Position"), DisplayName("Latitude"), Description("Can also be changed by dragging the label in the preview.")]
     public double Lat { get; set; }
 
-    [Category("4. Poloha"), DisplayName("Zemepisná dĺžka")]
+    [Category("4. Position"), DisplayName("Longitude")]
     public double Lon { get; set; }
 
     [Browsable(false), JsonIgnore]
