@@ -2,6 +2,8 @@
 
 A WinForms app (.NET 10) that turns a GPX track into a **map background + the track as a Fusion polyline** for DaVinci Resolve. You then build the animation (drawing the track, camera moves) yourself with keyframes in Fusion.
 
+📖 **[User guide](https://dorwindt.github.io/GpxToFusion/)**: the full manual with screenshots, the Resolve workflow, a settings reference and troubleshooting.
+
 ## Running
 
 ```
