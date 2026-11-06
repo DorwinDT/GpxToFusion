@@ -115,7 +115,7 @@ public sealed class ExportSettings
     public double LineWidth1080 { get; set; } = 6;
 
     [Category("2. Track"), DisplayName("Simplification (px)"),
-     Description("Douglas–Peucker tolerance in map.png pixels. Larger = fewer points in the Fusion polyline.")]
+     Description("Douglas–Peucker tolerance in map.png pixels. Larger = fewer points in the Fusion polyline = faster rendering in Resolve. Also set by the Track detail slider.")]
     public double SimplifyTolerancePx { get; set; } = 0.5;
 
     [Category("2. Track"), DisplayName("GPS noise filter (m)"), Description("Skips points closer than X meters to the previous one (standing still). 0 = off.")]

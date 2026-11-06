@@ -37,6 +37,12 @@ public sealed class MapPreview : SKControl
     public int CropStart { get; set; }
     [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public int CropEnd { get; set; }
+    /// <summary>
+    /// Indices into <see cref="FullTrack"/> of the simplified Fusion polyline. When set, the cropped line is drawn
+    /// through these points only, so the preview shows what Fusion will get.
+    /// </summary>
+    [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public IReadOnlyList<int>? PolylineIndices { get; set; }
     [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public ExportSettings Settings { get; set; } = new();
     [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -484,7 +490,7 @@ public sealed class MapPreview : SKControl
         // Track
         float lineW = (float)Math.Max(1.5, Settings.LineWidthPx * exportRect.Width / ef.Width);
         using var ghostPath = BuildPath(view, 0, FullTrack.Count - 1);
-        using var cropPath = BuildPath(view, CropStart, CropEnd);
+        using var cropPath = PolylineIndices is { Count: >= 2 } idx ? BuildPath(view, idx) : BuildPath(view, CropStart, CropEnd);
         using (var ghost = new SKPaint
                {
                    IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = Math.Max(1.5f, lineW * 0.6f),
@@ -579,6 +585,21 @@ public sealed class MapPreview : SKControl
             else if (Math.Abs(x - lastX) + Math.Abs(y - lastY) < 0.5 && i != to) continue; // skip sub-pixel steps
             else path.LineTo((float)x, (float)y);
             lastX = x; lastY = y;
+        }
+        return path.Detach();
+    }
+
+    /// <summary>Path through the given track indices (the simplified polyline), without skipping any point.</summary>
+    private SKPath BuildPath(MapFrame view, IReadOnlyList<int> indices)
+    {
+        var path = new SKPathBuilder();
+        var pts = FullTrack!.Points;
+        for (int k = 0; k < indices.Count; k++)
+        {
+            var p = pts[Math.Clamp(indices[k], 0, pts.Count - 1)];
+            var (x, y) = view.ToPixel(p.Lat, p.Lon);
+            if (k == 0) path.MoveTo((float)x, (float)y);
+            else path.LineTo((float)x, (float)y);
         }
         return path.Detach();
     }

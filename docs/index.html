@@ -179,6 +179,7 @@ dotnet run --project src/GpxToFusion -- "C:\path\to\track.gpx"</code></pre>
   <tr><td>Menu &amp; toolbar</td><td>File, Export, View, Edit, Help (<em>Controls</em>, <em>User guide (online)</em> and <em>About</em> with the version number). The toolbar has the most common commands: Export, Copy .setting, preview mode, Auto frame, Label and Extend track.</td></tr>
   <tr><td>Map preview</td><td>Shows exactly what <code>map.png</code> will contain (<em>Frame</em> mode, <kbd>F5</kbd>) or the whole track with the export frame outlined (<em>Full track</em>, <kbd>F6</kbd>). Drag to pan, wheel to zoom.</td></tr>
   <tr><td>Settings panel</td><td>All export options grouped as Map, Track, Fusion, Labels and Added points. The box below shows help for the selected option.</td></tr>
+  <tr><td>Track detail</td><td>Slider for how many points the Fusion polyline gets (same as <em>Simplification (px)</em>). Move it right for fewer points and faster rendering in Resolve. The tolerance and the point count are shown next to it, and the line in the preview is drawn from the simplified points, so you can see when it starts cutting corners.</td></tr>
   <tr><td>Info box</td><td>Output size, zoom, number of tiles, map scale, point counts after filtering and simplification, and the resulting line width.</td></tr>
   <tr><td>Crop timeline</td><td>The x axis is <strong>time</strong>, so pauses are visible. Speed is drawn in yellow, elevation in blue. Green and red handles mark the start and end.</td></tr>
 </table>
@@ -323,7 +324,7 @@ dotnet run --project src/GpxToFusion -- "C:\path\to\track.gpx"</code></pre>
   <tr><th>Setting</th><th>Description</th></tr>
   <tr><td>Line color</td><td>Color of the track line.</td></tr>
   <tr><td>Line width (px at 1080p)</td><td>Scaled with the resolution (4K → 2×).</td></tr>
-  <tr><td>Simplification (px)</td><td>Douglas–Peucker tolerance. Larger = fewer polyline points in Fusion.</td></tr>
+  <tr><td>Simplification (px)</td><td>Douglas–Peucker tolerance in <code>map.png</code> pixels. Larger = fewer polyline points in Fusion and faster rendering. Also set by the <em>Track detail</em> slider.</td></tr>
   <tr><td>GPS noise filter (m)</td><td>Drops points closer than this to the previous one (e.g. standing still). 0 = off.</td></tr>
   <tr><td>Image at line head / Image size</td><td>Optional PNG that rides on the end of the line; size of its longer side at 1080p.</td></tr>
 </table>
@@ -396,6 +397,9 @@ dotnet run --project src/GpxToFusion -- "C:\path\to\track.gpx"</code></pre>
 
 <h3>Labels use a different font in Resolve</h3>
 <p>Text+ needs the same font installed on the machine running Resolve. Otherwise choose <em>Burn into map.png</em>.</p>
+
+<h3>Rendering in Resolve is slow</h3>
+<p>Long tracks give the polyline thousands of points (and the marker path the same number). Move the <a href="#window"><em>Track detail</em></a> slider to the right, or raise <em>Simplification (px)</em>, until the point count drops to a few hundred. At 4K, 2–5 px is usually not visible. Watch the preview line: it shows the simplified track. Then export again and paste the new .setting.</p>
 
 <h3>Export takes long</h3>
 <p>The info box warns when a map needs many tiles. Use a smaller resolution or less extra zoom-out. Downloaded tiles are cached, so repeated exports are fast.</p>

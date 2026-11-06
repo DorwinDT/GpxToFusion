@@ -15,6 +15,9 @@ public sealed class MainForm : Form
     private readonly DescriptionPanel _info, _help;
     private readonly NumericUpDown _numStart, _numEnd;
     private readonly Label _lblStart, _lblEnd, _lblResult;
+    private readonly TrackBar _simplifyBar;
+    private readonly Label _lblSimplify;
+    private bool _suppressSimplify;
     private readonly ToolStripButton _btnExport, _btnAddLabel, _btnAutoFrame, _btnViewFrame, _btnViewFull;
     private readonly ToolStripDropDownButton _btnExtend, _btnCancel;
     private readonly ToolStripMenuItem _btnExtendStart, _btnExtendEnd;
@@ -215,9 +218,42 @@ public sealed class MainForm : Form
 
         _info = new DescriptionPanel { Dock = DockStyle.Bottom, BackColor = SystemColors.Info, ForeColor = SystemColors.InfoText };
 
+        // ---------- polyline detail (number of points in Fusion) ----------
+        _simplifyBar = new TrackBar
+        {
+            AutoSize = false, Height = 26, Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(0),
+            Minimum = 0, Maximum = SimplifySteps, TickFrequency = 10,
+            SmallChange = 1, LargeChange = 10, TickStyle = TickStyle.None,
+        };
+        _lblSimplify = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, AutoSize = false };
+        var simplifyCaption = new Label { Text = "Track detail:", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(3, 0, 0, 0) };
+        var tip = new ToolTip();
+        string tipText = "Fewer points in the Fusion polyline = faster rendering in Resolve.\n" +
+                         "Right = fewer points. The preview line shows the simplified track.\n" +
+                         "Same as \"Simplification (px)\" in the settings.";
+        tip.SetToolTip(_simplifyBar, tipText);
+        tip.SetToolTip(simplifyCaption, tipText);
+        tip.SetToolTip(_lblSimplify, tipText);
+        _simplifyBar.ValueChanged += (_, _) =>
+        {
+            if (_suppressSimplify) return;
+            _settings.SimplifyTolerancePx = SimplifyFromBar(_simplifyBar.Value);
+            _grid.Refresh();
+            Recompute();
+        };
+        var simplifyRow = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 32, ColumnCount = 3, RowCount = 1, Padding = new Padding(2, 2, 4, 2) };
+        simplifyRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        simplifyRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        simplifyRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        simplifyRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+        simplifyRow.Controls.Add(simplifyCaption, 0, 0);
+        simplifyRow.Controls.Add(_simplifyBar, 1, 0);
+        simplifyRow.Controls.Add(_lblSimplify, 2, 0);
+
         var right = new Panel { Dock = DockStyle.Fill };
         right.Controls.Add(_grid);
         right.Controls.Add(_help);
+        right.Controls.Add(simplifyRow);
         right.Controls.Add(_info);
 
         var split = new SplitContainer
@@ -525,7 +561,9 @@ public sealed class MainForm : Form
         if (_track == null)
         {
             _info.Text = "No track.";
+            UpdateSimplifyRow(null);
             _preview.ExportFrame = null;
+            _preview.PolylineIndices = null;
             _preview.Invalidate();
             return;
         }
@@ -540,7 +578,9 @@ public sealed class MainForm : Form
         _preview.CropStart = _timeline.Start;
         _preview.CropEnd = _timeline.End;
         _preview.ExportFrame = frame;
+        _preview.PolylineIndices = geo.Simplified.Select(p => _timeline.Start + p.SourceIndex).ToArray();
         _preview.Invalidate();
+        UpdateSimplifyRow(geo.Simplified.Count);
 
         double metersPerPx = 156543.03392 * Math.Cos(cropped.Points[0].Lat * Math.PI / 180) / Math.Pow(2, frame.Zoom);
         string warn = tiles > 2000 ? $"\n⚠ Many tiles ({tiles}) – downloading will take long, consider a smaller resolution." : "";
@@ -549,6 +589,32 @@ public sealed class MainForm : Form
             $"Scale: {metersPerPx:0.00} m/px\n" +
             $"Points: {cropped.Count:N0} → after filter {geo.Full.Count:N0} → polyline {geo.Simplified.Count:N0}\n" +
             $"Line width: {_settings.LineWidthPx:0.#} px" + warn;
+    }
+
+    // Slider position (0..SimplifySteps) ↔ Douglas–Peucker tolerance, logarithmic from SimplifyMinPx to SimplifyMaxPx.
+    private const int SimplifySteps = 100;
+    private const double SimplifyMinPx = 0.1, SimplifyMaxPx = 20;
+
+    private static double SimplifyFromBar(int pos)
+    {
+        double v = SimplifyMinPx * Math.Pow(SimplifyMaxPx / SimplifyMinPx, (double)pos / SimplifySteps);
+        return v < 1 ? Math.Round(v, 2) : Math.Round(v, 1);
+    }
+
+    private static int SimplifyToBar(double px)
+    {
+        double t = Math.Log(Math.Clamp(px, SimplifyMinPx, SimplifyMaxPx) / SimplifyMinPx) / Math.Log(SimplifyMaxPx / SimplifyMinPx);
+        return (int)Math.Round(t * SimplifySteps);
+    }
+
+    /// <summary>Syncs the slider with the setting (it can also change in the grid or by loading a project).</summary>
+    private void UpdateSimplifyRow(int? points)
+    {
+        _suppressSimplify = true;
+        _simplifyBar.Value = SimplifyToBar(_settings.SimplifyTolerancePx);
+        _suppressSimplify = false;
+        string tol = $"{_settings.SimplifyTolerancePx:0.##} px";
+        _lblSimplify.Text = points is { } n ? $"{tol} · {n:N0} pts" : tol;
     }
 
     // =============== view / modes ===============
