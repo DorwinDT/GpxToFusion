@@ -23,6 +23,12 @@ dotnet run --project src/GpxToFusion -- "D:\!!!\Afternoon_Walk.gpx"
 - `EndToEndTests` downloads real map tiles. It is a no-op unless the env var `GPX2FUSION_E2E_OUT` points to an output folder.
 - Close a running `GpxToFusion.exe` before building, otherwise the exe stays locked.
 
+## User documentation (keep it current)
+
+- `docs/index.html` is the user guide: a single self-contained page with inline CSS, intended for GitHub Pages from `/docs`. Screenshots live in `docs/images/`.
+- **Whenever a change affects what the user sees or does**, update `docs/index.html` in the same change. That covers UI texts, menus, shortcuts, settings (the "Settings reference" tables mirror `ExportSettings` / `MapLabel`), export files, the Fusion node graph or the Resolve workflow. Keep `README.md` consistent too.
+- If the UI changes visibly, retake `docs/images/app-main.png`. Launch the built exe with `Afternoon_Walk.gpx` at a 1400×900 window, capture it with `PrintWindow` and use the default settings.
+
 ## Build gotchas
 
 - The TFM must be `net10.0-windows10.0.19041.0` in both projects. With plain `net10.0-windows`, `SkiaSharp.Views.WindowsForms` 4.x falls back to its .NET Framework assets (NU1701).
