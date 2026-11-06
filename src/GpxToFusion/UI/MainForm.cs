@@ -116,7 +116,12 @@ public sealed class MainForm : Form
 
         // Help
         var miHelp = new ToolStripMenuItem("&Help");
-        miHelp.DropDownItems.Add(Mi("&Controls…", Icons.Help, (_, _) => ShowHelp(), Keys.F1));
+        miHelp.DropDownItems.AddRange([
+            Mi("&Controls…", Icons.Help, (_, _) => ShowHelp(), Keys.F1),
+            Mi("&User guide (online)", null, (_, _) => AboutDialog.OpenUrl(AboutDialog.GuideUrl)),
+            new ToolStripSeparator(),
+            Mi("&About GPX → Fusion…", null, (_, _) => { using var dlg = new AboutDialog(); dlg.ShowDialog(this); }),
+        ]);
 
         var menu = new MenuStrip { Padding = new Padding(4, 2, 0, 2) };
         menu.Items.AddRange([miFile, miExportMenu, miView, miEdit, miHelp]);
