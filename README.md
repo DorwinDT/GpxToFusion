@@ -81,6 +81,10 @@ In Fusion, select a node and press **1** to show it in the viewer:
 
 The attribution text is written into `map.png` by default (can be turned off).
 
+## License
+
+[MIT](LICENSE) © Peter Turcan (DorwinDT). You may use, modify and redistribute the code freely, as long as the license notice is kept. The map tiles are not covered by this license; each map source has its own terms (see above).
+
 ## Development
 
 ```
