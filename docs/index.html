@@ -190,7 +190,7 @@ dotnet run --project src/GpxToFusion -- "C:\path\to\track.gpx"</code></pre>
 <h2>Workflow</h2>
 <ol class="steps">
   <li id="open"><b>Open a GPX.</b>
-    <p><em>File → Open GPX…</em> (<kbd>Ctrl</kbd>+<kbd>O</kbd>) or drag a <code>.gpx</code> file into the window. The track is shown on the map and the timeline fills with speed and elevation. You can also save everything as a project (<kbd>Ctrl</kbd>+<kbd>S</kbd>, <code>*.g2f.json</code>) and load it later.</p>
+    <p><em>File → Open GPX…</em> (<kbd>Ctrl</kbd>+<kbd>O</kbd>) or drag a <code>.gpx</code> file into the window. The track is shown on the map and the timeline fills with speed and elevation. You can also save everything as a project (<code>*.g2f.json</code>) and load it later. <em>File → Save project</em> (<kbd>Ctrl</kbd>+<kbd>S</kbd>) saves under the current name; the first time, or after opening a new GPX, it asks for a file name. <em>Save project as…</em> (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>) saves a copy under a new name. The window title shows the project name.</p>
   </li>
 
   <li id="crop"><b>Crop the track.</b>
@@ -364,6 +364,7 @@ dotnet run --project src/GpxToFusion -- "C:\path\to\track.gpx"</code></pre>
   <tr><th>Keys / mouse</th><th>Action</th></tr>
   <tr><td><kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>Open GPX</td></tr>
   <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd> / <kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Load / save project</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></td><td>Save project as…</td></tr>
   <tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td><td>Export</td></tr>
   <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd></td><td>Copy .setting to the clipboard</td></tr>
   <tr><td><kbd>F5</kbd> / <kbd>F6</kbd></td><td>Preview the export frame / the full track</td></tr>

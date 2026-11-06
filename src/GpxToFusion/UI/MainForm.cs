@@ -34,6 +34,8 @@ public sealed class MainForm : Form
     /// <summary>How many added points precede the recorded ones in the current <see cref="_track"/>.</summary>
     private int _builtExtraStart;
     private string? _gpxPath;
+    /// <summary>Project file the current state was loaded from / last saved to; null = not saved yet.</summary>
+    private string? _projectPath;
     private string? _lastExportFolder;
     private CancellationTokenSource? _exportCts;
     private bool _suppressNumeric;
@@ -74,7 +76,8 @@ public sealed class MainForm : Form
         miFile.DropDownItems.AddRange([
             Mi("&Open GPX…", Icons.OpenFile, (_, _) => OpenGpxDialog(), Keys.Control | Keys.O),
             Mi("&Load project…", Icons.OpenProject, (_, _) => LoadProjectDialog(), Keys.Control | Keys.Shift | Keys.O),
-            Mi("&Save project…", Icons.Save, (_, _) => SaveProjectDialog(), Keys.Control | Keys.S, needTrack: true),
+            Mi("&Save project", Icons.Save, (_, _) => SaveProject(), Keys.Control | Keys.S, needTrack: true),
+            Mi("Save project &as…", null, (_, _) => SaveProjectDialog(), Keys.Control | Keys.Shift | Keys.S, needTrack: true),
             new ToolStripSeparator(),
             Mi("Save &GPX with added points…", null, (_, _) => SaveGpxDialog(), needTrack: true),
             new ToolStripSeparator(),
@@ -156,7 +159,7 @@ public sealed class MainForm : Form
         var tools = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Padding = new Padding(6, 3, 6, 3), ImageScalingSize = iconSize };
         tools.Items.AddRange([
             Tb("", Icons.OpenFile, "Open GPX… (Ctrl+O)", (_, _) => OpenGpxDialog()),
-            Tb("", Icons.Save, "Save project… (Ctrl+S)", (_, _) => SaveProjectDialog(), needTrack: true),
+            Tb("", Icons.Save, "Save project (Ctrl+S)", (_, _) => SaveProject(), needTrack: true),
             new ToolStripSeparator(),
             _btnExport,
             Tb("Copy .setting", Icons.Copy, "Ctrl+Shift+C – then in Resolve → Fusion → Node editor → Ctrl+V",
@@ -360,11 +363,12 @@ public sealed class MainForm : Form
                 _settings.ExtraStart.Clear();
                 _settings.ExtraEnd.Clear();
                 _settings.ManualFrame = null;
+                _projectPath = null; // a new GPX is a new project: Ctrl+S must not overwrite the old one
             }
             _recorded = points;
             _gpxPath = path;
             _lastExportFolder = null;
-            Text = $"GPX → Fusion – {Path.GetFileName(path)}";
+            UpdateTitle();
             SetTrack(cropStart ?? 0,cropEnd ?? int.MaxValue);
             _grid.Refresh();
             _status.Text = $"Loaded: {_recorded.Count:N0} points, {FormatDuration(_track!.TotalSeconds)}, {_track.TotalDistance / 1000:0.00} km";
@@ -388,11 +392,13 @@ public sealed class MainForm : Form
         try
         {
             var p = ProjectFile.Load(path);
+            _projectPath = path;
             _settings = p.Settings;
             _grid.SelectedObject = _settings;
             _preview.Settings = _settings;
             if (p.GpxPath == null || !File.Exists(p.GpxPath))
             {
+                _projectPath = null; // nothing usable loaded
                 MessageBox.Show(this, $"The project GPX file was not found:\n{p.GpxPath}", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 Recompute();
                 return;
@@ -406,25 +412,57 @@ public sealed class MainForm : Form
         }
     }
 
+    /// <summary>Saves under the current project name; asks for one if the project was never saved.</summary>
+    private void SaveProject()
+    {
+        if (_gpxPath == null) return;
+        if (_projectPath == null) SaveProjectDialog();
+        else WriteProject(_projectPath);
+    }
+
     private void SaveProjectDialog()
     {
         if (_gpxPath == null) return;
         using var dlg = new SaveFileDialog
         {
             Filter = "GPX→Fusion project (*.g2f.json)|*.g2f.json",
-            FileName = Path.GetFileNameWithoutExtension(_gpxPath) + ".g2f.json",
-            InitialDirectory = Path.GetDirectoryName(_gpxPath),
+            FileName = _projectPath != null ? Path.GetFileName(_projectPath) : Path.GetFileNameWithoutExtension(_gpxPath) + ".g2f.json",
+            InitialDirectory = Path.GetDirectoryName(_projectPath ?? _gpxPath),
+            Title = "Save project as",
         };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        new ProjectFile
+        WriteProject(dlg.FileName);
+    }
+
+    private void WriteProject(string path)
+    {
+        try
         {
-            GpxPath = _gpxPath,
-            CropStart = _timeline.Start,
-            CropEnd = _timeline.End,
-            LastExportFolder = _lastExportFolder,
-            Settings = _settings,
-        }.Save(dlg.FileName);
-        _status.Text = $"Project saved: {dlg.FileName}";
+            new ProjectFile
+            {
+                GpxPath = _gpxPath,
+                CropStart = _timeline.Start,
+                CropEnd = _timeline.End,
+                LastExportFolder = _lastExportFolder,
+                Settings = _settings,
+            }.Save(path);
+            _projectPath = path;
+            UpdateTitle();
+            _status.Text = $"Project saved: {path}";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Could not save the project:\n{ex.Message}", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    /// <summary>Window title: project name (if any) and the GPX file.</summary>
+    private void UpdateTitle()
+    {
+        string gpx = _gpxPath != null ? Path.GetFileName(_gpxPath) : "";
+        Text = _projectPath != null ? $"GPX → Fusion – {Path.GetFileName(_projectPath)} ({gpx})"
+             : _gpxPath != null ? $"GPX → Fusion – {gpx}"
+             : "GPX → Fusion";
     }
 
     // =============== added points ===============
@@ -669,7 +707,7 @@ public sealed class MainForm : Form
         "Crop (timeline at the bottom)\n" +
         "  • green/red handle, the middle moves the whole selection\n" +
         "  • arrows ←/→ (Shift = 1 min, Ctrl = 10 min), Home/End switches the handle\n\n" +
-        "File: Ctrl+O open GPX, Ctrl+S save project · Export: Ctrl+E, Ctrl+Shift+C copy .setting",
+        "File: Ctrl+O open GPX, Ctrl+S save project, Ctrl+Shift+S save project as · Export: Ctrl+E, Ctrl+Shift+C copy .setting",
         "Controls", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
     /// <summary>The user panned/zoomed the map in the preview: store it as the manual export frame.</summary>
