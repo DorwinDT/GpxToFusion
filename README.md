@@ -4,7 +4,11 @@ A WinForms app (.NET 10) that turns a GPX track into a **map background + the tr
 
 📖 **[User guide](https://dorwindt.github.io/GpxToFusion/)**: the full manual with screenshots, the Resolve workflow, a settings reference and troubleshooting.
 
-## Running
+## Download
+
+Get `GpxToFusion-v<version>-win-x64.zip` from the **[latest release](https://github.com/DorwinDT/GpxToFusion/releases/latest)**, unzip it and run `GpxToFusion.exe`. Windows 10/11 (64-bit); no installation and no .NET runtime needed. Windows SmartScreen may warn because the exe is not code-signed: *More info → Run anyway*.
+
+## Running from source
 
 ```
 dotnet run --project src/GpxToFusion -- "D:\!!!\Afternoon_Walk.gpx"

@@ -1,0 +1,55 @@
+# Builds a self-contained Windows exe and publishes a GitHub Release when a version tag is pushed.
+#   git tag v1.0.0 && git push origin v1.0.0
+# The tag must match <Version> in src/GpxToFusion/GpxToFusion.csproj.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Check tag matches csproj version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart('v')
+          $ver = ([xml](Get-Content src/GpxToFusion/GpxToFusion.csproj)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          if ($tag -ne $ver) { throw "Tag $tag does not match csproj Version $ver" }
+
+      # Tests are not run here: they need the sample GPX that lives outside the repository.
+      - name: Publish
+        run: >
+          dotnet publish src/GpxToFusion -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Remove-Item publish/*.pdb -ErrorAction SilentlyContinue
+          Copy-Item LICENSE, README.md publish/
+          Compress-Archive -Path publish/* -DestinationPath "GpxToFusion-${{ github.ref_name }}-win-x64.zip"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: GPX → Fusion ${{ github.ref_name }}
+          files: GpxToFusion-${{ github.ref_name }}-win-x64.zip
+          generate_release_notes: true
+          body: |
+            **Download** `GpxToFusion-${{ github.ref_name }}-win-x64.zip`, unzip it anywhere and run `GpxToFusion.exe`.
+            Windows 10/11 (64-bit). No installation and no .NET runtime needed.
+
+            📖 User guide: https://dorwindt.github.io/GpxToFusion/
+
+            Windows SmartScreen may warn because the exe is not code-signed: click *More info → Run anyway*.

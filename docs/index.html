@@ -154,8 +154,13 @@
 <!-- ============================================================ -->
 <section id="install">
 <h2>Installation</h2>
-<p>Requirements: Windows 10/11 and the <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 Desktop Runtime</a>. DaVinci Resolve (free or Studio) is needed for the result.</p>
-<p>Build and run from source:</p>
+<ol>
+  <li>Download <code>GpxToFusion-v&lt;version&gt;-win-x64.zip</code> from the <a href="https://github.com/DorwinDT/GpxToFusion/releases/latest">latest release</a>.</li>
+  <li>Unzip it anywhere and run <code>GpxToFusion.exe</code>. No installation and no .NET runtime needed.</li>
+</ol>
+<p>Requirements: Windows 10/11 (64-bit) and DaVinci Resolve (free or Studio) for the result.</p>
+<div class="note"><p>The exe is not code-signed, so Windows SmartScreen may show a warning the first time. Click <em>More info → Run anyway</em>.</p></div>
+<p>Or build and run from source (needs the <a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 SDK</a>):</p>
 <pre><code>git clone https://github.com/DorwinDT/GpxToFusion.git
 cd GpxToFusion
 dotnet run --project src/GpxToFusion -- "C:\path\to\track.gpx"</code></pre>

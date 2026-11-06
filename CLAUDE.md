@@ -29,6 +29,12 @@ dotnet run --project src/GpxToFusion -- "D:\!!!\Afternoon_Walk.gpx"
 - **Whenever a change affects what the user sees or does**, update `docs/index.html` in the same change. That covers UI texts, menus, shortcuts, settings (the "Settings reference" tables mirror `ExportSettings` / `MapLabel`), export files, the Fusion node graph or the Resolve workflow. Keep `README.md` consistent too.
 - If the UI changes visibly, retake `docs/images/app-main.png`. Launch the built exe with `Afternoon_Walk.gpx` at a 1400×900 window, capture it with `PrintWindow` and use the default settings.
 
+## Releases
+
+- The version lives only in `<Version>` in `src/GpxToFusion/GpxToFusion.csproj`. Help → About reads it from the assembly.
+- Pushing a tag `vX.Y.Z` that matches the csproj version runs `.github/workflows/release.yml`. It publishes a self-contained single-file win-x64 exe, zips it with LICENSE and README and creates the GitHub Release. The workflow fails if the tag and the version differ.
+- CI does not run tests, because the sample GPX is outside the repository.
+
 ## Build gotchas
 
 - The TFM must be `net10.0-windows10.0.19041.0` in both projects. With plain `net10.0-windows`, `SkiaSharp.Views.WindowsForms` 4.x falls back to its .NET Framework assets (NU1701).
