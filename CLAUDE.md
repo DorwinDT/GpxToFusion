@@ -32,7 +32,7 @@ dotnet run --project src/GpxToFusion -- "D:\!!!\Afternoon_Walk.gpx"
 ## Releases
 
 - The version lives only in `<Version>` in `src/GpxToFusion/GpxToFusion.csproj`. Help → About reads it from the assembly.
-- Pushing a tag `vX.Y.Z` that matches the csproj version runs `.github/workflows/release.yml`. It publishes a self-contained single-file win-x64 exe, zips it with LICENSE and README and creates the GitHub Release. The workflow fails if the tag and the version differ.
+- Pushing a tag `vX.Y.Z` that matches the csproj version runs `.github/workflows/release.yml`. It publishes a self-contained single-file win-x64 exe, zips it with LICENSE and README and creates the GitHub Release. The workflow fails if the tag and the version differ, or if `CHANGELOG.md` has no `## X.Y.Z` section for that version (the section becomes the release notes).
 - CI does not run tests, because the sample GPX is outside the repository.
 
 ## Build gotchas
@@ -63,6 +63,7 @@ The pipeline is `Gpx` → `Map` → `Export`, with `UI` on top.
   - Optional marker image: `MarkerLoader` → FG of `MergeMarker`, whose Center comes from `MarkerPath` (PolyPath with the same points as TrackPath). Verified in Resolve: the path lies exactly on the line and matches at both ends, but with Displacement = WriteLength the marker lagged in between, so the mask and the path measure arc length differently. Displacement is therefore a piecewise remap of `TrackPath.WriteLength` (`ArcSyncCurve`), selectable by the `PathSync` combo on MarkerPath; default assumes mask = pixel length, path = normalized X/W, Y/H length. Not yet confirmed that this default removes the lag.
   - Still unverified: the `BorderWidth` conversion (`LineWidthPx / Width / 2`) and whether the Loader hold-frame fields are honored.
 - **Added points (`Gpx/TrackExtension`):** points the user clicks before the recorded start / after the end are stored in `ExportSettings.ExtraStart/ExtraEnd` (outward order, index 0 next to the recorded track). `MainForm` keeps the recorded points in `_recorded` and rebuilds `_track` = extended points (synthetic times from `ExtensionSpeedKmh`, 0 = moving average), shifting the crop so it stays on the same recorded points. `MapPreview.ExtendMode` handles click/drag/insert/delete and freezes its view while dragging (a refit would otherwise move the point away from the cursor). `Gpx/GpxWriter` saves the extended track as a new GPX.
+- **Drawn routes (`ExtendMode.Route`):** a track with no GPX file. Points live in `ExportSettings.RoutePoints` (so a project has `GpxPath = null`); `MainForm._isRoute` makes `SetTrack` use `TrackExtension.FromRoute` (constant-speed times from a fixed start, no elevation). `_track` stays null below 2 points, but the preview still draws the map. While drawing, the frame is pinned as `ManualFrame` (an automatic one would refit on every click) and goes back to automatic at the end if it was automatic before.
 - **`Export/ExportSettings`:** shown directly in a `PropertyGrid`. It uses Category/DisplayName/Description attributes and `UI/EnumDescriptionConverter` for enum labels, and is serialized to `.g2f.json` (`ProjectFile`).
   - `LineColor` is stored through `LineColorHex`.
   - `Resolution` / `Width` / `Height` keep each other in sync. Declaration order matters for JSON deserialization.

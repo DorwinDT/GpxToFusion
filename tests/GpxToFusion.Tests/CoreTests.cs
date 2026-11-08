@@ -367,6 +367,93 @@ public class CoreTests
     }
 
     [Fact]
+    public void TrackExtension_FromRouteGivesConstantSpeedTimes()
+    {
+        var route = new List<GeoPoint> { new(48.0, 17.0), new(48.001, 17.0), new(48.003, 17.0) };
+
+        var track = new Track(TrackExtension.FromRoute(route, speedKmh: 3.6)); // 1 m/s
+
+        Assert.True(track.HasTime);
+        Assert.Equal(track.CumDist[1], track.CumTime[1], 2);
+        Assert.Equal(track.CumDist[2], track.CumTime[2], 2);
+        Assert.All(track.Points, p => Assert.Null(p.Ele));
+        // Rebuilding while editing must not shift the times.
+        Assert.Equal(track.Points[0].Time, TrackExtension.FromRoute(route, 3.6)[0].Time);
+    }
+
+    [Fact]
+    public void TrackExtension_FromRouteUsesFallbackForAutoSpeed()
+    {
+        var route = new List<GeoPoint> { new(48.0, 17.0), new(48.001, 17.0) };
+
+        var auto = new Track(TrackExtension.FromRoute(route, speedKmh: 0));
+
+        Assert.Equal(TrackExtension.FallbackSpeedKmh, auto.TotalDistance / auto.TotalSeconds * 3.6, 2);
+    }
+
+    [Fact]
+    public void TrackExtension_FromRouteHandlesTooFewPoints()
+    {
+        Assert.Empty(TrackExtension.FromRoute([], 5));
+        Assert.Single(TrackExtension.FromRoute([new GeoPoint(48.0, 17.0)], 5));
+    }
+
+    [Fact]
+    public void EveryMapStyle_HasItsOwnTileSource()
+    {
+        var keys = Enum.GetValues<MapStyle>().Select(style => new ExportSettings { Style = style }.TileSource.Key).ToList();
+
+        Assert.Equal(keys.Count, keys.Distinct().Count());
+    }
+
+    [Fact]
+    public void DrawnRoute_ExportsToFusionAndGpx()
+    {
+        var route = new List<GeoPoint> { new(48.10, 17.10), new(48.12, 17.14), new(48.11, 17.20) };
+        var track = new Track(TrackExtension.FromRoute(route, 15));
+
+        string setting = Exporter.BuildSetting(track, new ExportSettings(), @"C:\tmp\map.png");
+        Assert.Contains("TrackPath", setting);
+
+        using var stream = new MemoryStream();
+        GpxWriter.Write(stream, track.Points, "route");
+        string path = Path.Combine(Path.GetTempPath(), $"g2f_{Guid.NewGuid():N}.gpx");
+        try
+        {
+            File.WriteAllBytes(path, stream.ToArray());
+            var parsed = GpxParser.Parse(path);
+            Assert.Equal(route.Select(p => (p.Lat, p.Lon)), parsed.Select(p => (p.Lat, p.Lon)));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void ProjectFile_RoundTripsDrawnRouteWithoutGpx()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"g2f_{Guid.NewGuid():N}.g2f.json");
+        try
+        {
+            var s = new ExportSettings();
+            s.RoutePoints.Add(new GeoPoint(48.1, 17.2));
+            s.RoutePoints.Add(new GeoPoint(48.2, 17.3));
+
+            new ProjectFile { Settings = s }.Save(path);
+            var loaded = ProjectFile.Load(path);
+
+            Assert.Null(loaded.GpxPath);
+            Assert.Equal([(48.1, 17.2), (48.2, 17.3)], loaded.Settings.RoutePoints.Select(p => (p.Lat, p.Lon)));
+            Assert.NotSame(s.RoutePoints[0], s.Clone().RoutePoints[0]);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void TrackExtension_AutoSpeedIgnoresPauses()
     {
         var t0 = new DateTime(2026, 3, 16, 12, 0, 0, DateTimeKind.Utc);

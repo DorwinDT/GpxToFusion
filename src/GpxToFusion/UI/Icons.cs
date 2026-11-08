@@ -20,6 +20,9 @@ public static class Icons
     public const char Undo = '';
     public const char Help = '';
 
+    public const char Route = '';
+    public const char Edit = '';
+
     private static readonly Dictionary<(char, int, int), Bitmap> Cache = [];
 
     public static Bitmap Get(char glyph, int dpi, Color? color = null)
