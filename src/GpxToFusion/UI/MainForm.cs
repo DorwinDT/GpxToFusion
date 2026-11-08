@@ -18,10 +18,10 @@ public sealed class MainForm : Form
     private readonly TrackBar _simplifyBar;
     private readonly Label _lblSimplify;
     private bool _suppressSimplify;
-    private readonly ToolStripButton _btnExport, _btnAddLabel, _btnAutoFrame, _btnViewFrame, _btnViewFull;
+    private readonly ToolStripButton _btnExport, _btnAddLabel, _btnAutoFrame, _btnViewFrame, _btnViewFull, _btnEditRoute;
     private readonly ToolStripDropDownButton _btnExtend, _btnCancel;
     private readonly ToolStripMenuItem _btnExtendStart, _btnExtendEnd;
-    private readonly ToolStripMenuItem _miExport, _miAddLabel, _miExtendStart, _miExtendEnd, _miViewFrame, _miViewFull, _miAutoFrame;
+    private readonly ToolStripMenuItem _miExport, _miAddLabel, _miExtendStart, _miExtendEnd, _miViewFrame, _miViewFull, _miAutoFrame, _miEditRoute;
     /// <summary>Menu items and buttons that are enabled only with a loaded track.</summary>
     private readonly List<ToolStripItem> _needTrack = [];
     private readonly ToolStripStatusLabel _status;
@@ -31,6 +31,12 @@ public sealed class MainForm : Form
     private Track? _track;
     /// <summary>Points as recorded in the GPX file; <see cref="_track"/> = these plus the user-added ones.</summary>
     private List<TrackPoint>? _recorded;
+    /// <summary>The track is a route drawn on the map (<see cref="ExportSettings.RoutePoints"/>), not a GPX file.</summary>
+    private bool _isRoute;
+    /// <summary>The drawn route exists only in memory: it changed since the last save.</summary>
+    private bool _routeDirty;
+    /// <summary>The frame is pinned while drawing; true = go back to the automatic frame when the drawing ends.</summary>
+    private bool _restoreAutoFrame;
     /// <summary>How many added points precede the recorded ones in the current <see cref="_track"/>.</summary>
     private int _builtExtraStart;
     private string? _gpxPath;
@@ -74,12 +80,13 @@ public sealed class MainForm : Form
         // File
         var miFile = new ToolStripMenuItem("&File");
         miFile.DropDownItems.AddRange([
+            Mi("&New route (draw on the map)", Icons.Route, (_, _) => NewRoute(), Keys.Control | Keys.N),
             Mi("&Open GPX…", Icons.OpenFile, (_, _) => OpenGpxDialog(), Keys.Control | Keys.O),
             Mi("&Load project…", Icons.OpenProject, (_, _) => LoadProjectDialog(), Keys.Control | Keys.Shift | Keys.O),
             Mi("&Save project", Icons.Save, (_, _) => SaveProject(), Keys.Control | Keys.S, needTrack: true),
             Mi("Save project &as…", null, (_, _) => SaveProjectDialog(), Keys.Control | Keys.Shift | Keys.S, needTrack: true),
             new ToolStripSeparator(),
-            Mi("Save &GPX with added points…", null, (_, _) => SaveGpxDialog(), needTrack: true),
+            Mi("Save track as &GPX…", null, (_, _) => SaveGpxDialog(), needTrack: true),
             new ToolStripSeparator(),
             Mi("E&xit", null, (_, _) => Close(), Keys.Alt | Keys.F4),
         ]);
@@ -109,10 +116,11 @@ public sealed class MainForm : Form
             (_, _) => SetExtendMode(_preview!.ExtendMode == ExtendMode.Start ? ExtendMode.None : ExtendMode.Start), needTrack: true);
         _miExtendEnd = Mi("Extend track &end", Icons.Flag,
             (_, _) => SetExtendMode(_preview!.ExtendMode == ExtendMode.End ? ExtendMode.None : ExtendMode.End), needTrack: true);
+        _miEditRoute = Mi("Edit &route points", Icons.Edit, (_, _) => ToggleRouteEditing(), Keys.Control | Keys.R);
         var miClearStart = Mi("Delete added start", Icons.Delete, (_, _) => { _settings.ExtraStart.Clear(); RebuildTrack(); });
         var miClearEnd = Mi("Delete added end", Icons.Delete, (_, _) => { _settings.ExtraEnd.Clear(); RebuildTrack(); });
         var miEdit = new ToolStripMenuItem("&Edit");
-        miEdit.DropDownItems.AddRange([_miAddLabel, new ToolStripSeparator(), _miExtendStart, _miExtendEnd, miClearStart, miClearEnd,
+        miEdit.DropDownItems.AddRange([_miAddLabel, _miEditRoute, new ToolStripSeparator(), _miExtendStart, _miExtendEnd, miClearStart, miClearEnd,
             new ToolStripSeparator(), Mi("Reset &crop", Icons.Undo, (_, _) => ResetCrop(), needTrack: true)]);
         miEdit.DropDownOpening += (_, _) =>
         {
@@ -154,10 +162,12 @@ public sealed class MainForm : Form
         _btnExtendEnd = new ToolStripMenuItem("End (click in the map)", null,
             (_, _) => SetExtendMode(_preview!.ExtendMode == ExtendMode.End ? ExtendMode.None : ExtendMode.End));
         _btnExtend.DropDownItems.AddRange([_btnExtendStart, _btnExtendEnd]);
+        _btnEditRoute = Tb("Edit route", Icons.Edit, "Ctrl+R – edit the points of the drawn route. Esc = done.", (_, _) => ToggleRouteEditing());
 
         var iconSize = Icons.Get(Icons.Save, dpi).Size;
         var tools = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Padding = new Padding(6, 3, 6, 3), ImageScalingSize = iconSize };
         tools.Items.AddRange([
+            Tb("New route", Icons.Route, "Ctrl+N – draw a route by clicking in the map, instead of opening a GPX", (_, _) => NewRoute()),
             Tb("", Icons.OpenFile, "Open GPX… (Ctrl+O)", (_, _) => OpenGpxDialog()),
             Tb("", Icons.Save, "Save project (Ctrl+S)", (_, _) => SaveProject(), needTrack: true),
             new ToolStripSeparator(),
@@ -169,7 +179,7 @@ public sealed class MainForm : Form
             _btnViewFrame, _btnViewFull, _btnAutoFrame,
             new ToolStripSeparator(),
             new ToolStripLabel("Edit:") { ForeColor = SystemColors.GrayText },
-            _btnAddLabel, _btnExtend,
+            _btnAddLabel, _btnExtend, _btnEditRoute,
         ]);
         menu.ImageScalingSize = iconSize;
 
@@ -187,7 +197,11 @@ public sealed class MainForm : Form
         _preview.LabelEditRequested += label => EditLabel(label, isNew: false);
         _preview.LabelDeleteRequested += DeleteLabel;
         _preview.LabelMoved += _ => _grid!.Refresh();
-        _preview.ExtensionChanged += final => RebuildTrack(final);
+        _preview.ExtensionChanged += final =>
+        {
+            if (_preview.ExtendMode == ExtendMode.Route) _routeDirty = true;
+            RebuildTrack(final);
+        };
         _preview.FrameChanged += OnFrameChanged;
 
         _grid = new PropertyGrid
@@ -203,7 +217,9 @@ public sealed class MainForm : Form
             string? name = e.ChangedItem?.PropertyDescriptor?.Name;
             if (name == nameof(ExportSettings.ExtensionSpeedKmh)) { RebuildTrack(); return; }
             // Padding and zoom-out only make sense for the automatic frame: changing them switches back to it.
-            if (name is nameof(ExportSettings.PaddingPercent) or nameof(ExportSettings.ExtraZoomOut) && _settings.ManualFrame != null)
+            // (Not while drawing a route: the frame stays pinned then, and the setting applies when the drawing ends.)
+            if (name is nameof(ExportSettings.PaddingPercent) or nameof(ExportSettings.ExtraZoomOut) && _settings.ManualFrame != null
+                && _preview.ExtendMode != ExtendMode.Route)
             {
                 _settings.ManualFrame = null;
                 _grid!.Refresh();
@@ -328,8 +344,17 @@ public sealed class MainForm : Form
         {
             if (e.KeyCode == Keys.Escape && _preview.AddLabelMode) { SetAddLabelMode(false); e.Handled = true; }
             else if (e.KeyCode == Keys.Escape && _preview.ExtendMode != ExtendMode.None) { SetExtendMode(ExtendMode.None); e.Handled = true; }
+            else if (e.KeyData == (Keys.Control | Keys.Z) && _preview.ExtendMode == ExtendMode.Route && !_grid.ContainsFocus)
+            {
+                _preview.UndoRoute();
+                e.Handled = e.SuppressKeyPress = true;
+            }
         };
-        FormClosing += (_, _) => _exportCts?.Cancel();
+        FormClosing += (_, e) =>
+        {
+            if (!ConfirmDiscardRoute()) { e.Cancel = true; return; }
+            _exportCts?.Cancel();
+        };
     }
 
     // =============== loading ===============
@@ -358,13 +383,18 @@ public sealed class MainForm : Form
                 MessageBox.Show(this, "The GPX contains no track (at least 2 points).", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
+            if (!fromProject && !ConfirmDiscardRoute()) return false;
+            if (_preview.ExtendMode == ExtendMode.Route) SetExtendMode(ExtendMode.None);
             if (!fromProject)
             {
                 _settings.ExtraStart.Clear();
                 _settings.ExtraEnd.Clear();
+                _settings.RoutePoints.Clear();
                 _settings.ManualFrame = null;
                 _projectPath = null; // a new GPX is a new project: Ctrl+S must not overwrite the old one
             }
+            _isRoute = false;
+            _routeDirty = false;
             _recorded = points;
             _gpxPath = path;
             _lastExportFolder = null;
@@ -392,13 +422,21 @@ public sealed class MainForm : Form
         try
         {
             var p = ProjectFile.Load(path);
+            if (!ConfirmDiscardRoute()) return;
+            if (_preview.ExtendMode == ExtendMode.Route) SetExtendMode(ExtendMode.None);
             _projectPath = path;
             _settings = p.Settings;
             _grid.SelectedObject = _settings;
             _preview.Settings = _settings;
+            if (p.GpxPath == null && _settings.RoutePoints.Count >= 2)
+            {
+                ShowLoadedRoute(p);
+                return;
+            }
             if (p.GpxPath == null || !File.Exists(p.GpxPath))
             {
                 _projectPath = null; // nothing usable loaded
+                if (_isRoute) ForgetRoute();
                 MessageBox.Show(this, $"The project GPX file was not found:\n{p.GpxPath}", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 Recompute();
                 return;
@@ -412,22 +450,54 @@ public sealed class MainForm : Form
         }
     }
 
+    private void ShowLoadedRoute(ProjectFile p)
+    {
+        _isRoute = true;
+        _routeDirty = false;
+        _recorded = null;
+        _gpxPath = null;
+        _lastExportFolder = p.LastExportFolder;
+        UpdateTitle();
+        SetTrack(p.CropStart, p.CropEnd);
+        _grid.Refresh();
+        _status.Text = $"Loaded route: {_track!.Count:N0} points, {_track.TotalDistance / 1000:0.00} km";
+    }
+
+    /// <summary>The drawn route is gone (its settings were replaced): back to the empty state.</summary>
+    private void ForgetRoute()
+    {
+        _isRoute = false;
+        _routeDirty = false;
+        _track = null;
+        _timeline.Track = null;
+        _preview.FullTrack = null;
+        UpdateTitle();
+    }
+
+    /// <summary>A drawn route with unsaved changes exists only in memory, so ask before throwing it away.</summary>
+    private bool ConfirmDiscardRoute() => !_routeDirty ||
+        MessageBox.Show(this, "The drawn route has unsaved changes. Discard it?", Text, MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) == DialogResult.Yes;
+
+    /// <summary>Base name for files derived from the current track.</summary>
+    private string TrackName => _gpxPath != null ? Path.GetFileNameWithoutExtension(_gpxPath) : "route";
+
     /// <summary>Saves under the current project name; asks for one if the project was never saved.</summary>
     private void SaveProject()
     {
-        if (_gpxPath == null) return;
+        if (_track == null) return;
         if (_projectPath == null) SaveProjectDialog();
         else WriteProject(_projectPath);
     }
 
     private void SaveProjectDialog()
     {
-        if (_gpxPath == null) return;
+        if (_track == null) return;
         using var dlg = new SaveFileDialog
         {
             Filter = "GPX→Fusion project (*.g2f.json)|*.g2f.json",
-            FileName = _projectPath != null ? Path.GetFileName(_projectPath) : Path.GetFileNameWithoutExtension(_gpxPath) + ".g2f.json",
-            InitialDirectory = Path.GetDirectoryName(_projectPath ?? _gpxPath),
+            FileName = _projectPath != null ? Path.GetFileName(_projectPath) : TrackName + ".g2f.json",
+            InitialDirectory = (_projectPath ?? _gpxPath) is { } known ? Path.GetDirectoryName(known) : "",
             Title = "Save project as",
         };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
@@ -447,6 +517,7 @@ public sealed class MainForm : Form
                 Settings = _settings,
             }.Save(path);
             _projectPath = path;
+            _routeDirty = false;
             UpdateTitle();
             _status.Text = $"Project saved: {path}";
         }
@@ -459,9 +530,9 @@ public sealed class MainForm : Form
     /// <summary>Window title: project name (if any) and the GPX file.</summary>
     private void UpdateTitle()
     {
-        string gpx = _gpxPath != null ? Path.GetFileName(_gpxPath) : "";
+        string gpx = _gpxPath != null ? Path.GetFileName(_gpxPath) : _isRoute ? "drawn route" : "";
         Text = _projectPath != null ? $"GPX → Fusion – {Path.GetFileName(_projectPath)} ({gpx})"
-             : _gpxPath != null ? $"GPX → Fusion – {gpx}"
+             : gpx != "" ? $"GPX → Fusion – {gpx}"
              : "GPX → Fusion";
     }
 
@@ -470,18 +541,27 @@ public sealed class MainForm : Form
     /// <summary>Builds <see cref="_track"/> from the recorded points + added points and applies the crop.</summary>
     private void SetTrack(int cropStart, int cropEnd)
     {
-        var points = TrackExtension.Extend(_recorded!, _settings.ExtraStart, _settings.ExtraEnd, _settings.ExtensionSpeedKmh);
-        _track = new Track(points);
+        var points = _isRoute
+            ? TrackExtension.FromRoute(_settings.RoutePoints, _settings.ExtensionSpeedKmh)
+            : TrackExtension.Extend(_recorded!, _settings.ExtraStart, _settings.ExtraEnd, _settings.ExtensionSpeedKmh);
+        _track = points.Count >= 2 ? new Track(points) : null; // only a route being drawn can have fewer
         _builtExtraStart = _settings.ExtraStart.Count;
         _timeline.Track = _track;
         _preview.FullTrack = _track;
         _preview.ExtraStart = _settings.ExtraStart;
         _preview.ExtraEnd = _settings.ExtraEnd;
-        _preview.StartAnchor = _recorded![0];
-        _preview.EndAnchor = _recorded[^1];
+        _preview.Route = _settings.RoutePoints;
+        _preview.StartAnchor = _recorded?[0];
+        _preview.EndAnchor = _recorded?[^1];
         _suppressNumeric = true;
-        _numStart.Maximum = _numEnd.Maximum = _track.Count - 1;
+        _numStart.Maximum = _numEnd.Maximum = Math.Max(0, (_track?.Count ?? 1) - 1);
         _suppressNumeric = false;
+        if (_track == null)
+        {
+            _lblStart.Text = _lblEnd.Text = _lblResult.Text = "";
+            Recompute();
+            return;
+        }
         _timeline.SetRange(cropStart, Math.Min(cropEnd, _track.Count - 1), raise: false);
         OnCropChanged(fromNumeric: false);
     }
@@ -492,17 +572,20 @@ public sealed class MainForm : Form
     /// </summary>
     private void RebuildTrack(bool final = true)
     {
-        if (_recorded == null || _track == null) return;
-        int oldLast = _track.Count - 1;
+        if (_recorded == null && !_isRoute) return;
+        bool wasEmpty = _track == null; // a route that had fewer than 2 points has no crop to keep
+        int oldLast = (_track?.Count ?? 1) - 1;
         int shift = _settings.ExtraStart.Count - _builtExtraStart;
-        int start = _timeline.Start == 0 ? 0 : Math.Max(0, _timeline.Start + shift);
-        int end = _timeline.End == oldLast ? int.MaxValue : Math.Max(0, _timeline.End + shift);
+        int start = wasEmpty || _timeline.Start == 0 ? 0 : Math.Max(0, _timeline.Start + shift);
+        int end = wasEmpty || _timeline.End == oldLast ? int.MaxValue : Math.Max(0, _timeline.End + shift);
         SetTrack(start, end);
         if (final)
         {
             _grid.Refresh();
             int n = _settings.ExtraStart.Count + _settings.ExtraEnd.Count;
-            if (_preview.ExtendMode != ExtendMode.None)
+            if (_preview.ExtendMode == ExtendMode.Route)
+                _status.Text = $"Route: {_settings.RoutePoints.Count} pt., {(_track?.TotalDistance ?? 0) / 1000:0.00} km. " + RouteHint;
+            else if (_preview.ExtendMode != ExtendMode.None)
                 _status.Text = $"Added points: start {_settings.ExtraStart.Count}, end {_settings.ExtraEnd.Count}. " + ExtendHint;
             else if (n == 0)
                 _status.Text = "Added points deleted.";
@@ -511,10 +594,76 @@ public sealed class MainForm : Form
 
     private const string ExtendHint = "Click = new point, drag = move, click on a segment = insert point, right button = delete, Esc = done.";
 
+    private const string RouteHint = "Click = new point, drag a point = move, click on a segment = insert, right button = delete, " +
+                                     "drag the map = pan, wheel = zoom, Ctrl+Z = undo, Esc = done.";
+
+    // Where drawing starts when no track is loaded: an overview of Central Europe.
+    private static readonly FrameOverride RouteStartView = new() { Lat = 48.7, Lon = 19.5, Zoom = 6 };
+
+    private static FrameOverride ToOverride(MapFrame frame)
+    {
+        var (lat, lon) = WebMercator.FromWorld(frame.CenterX, frame.CenterY, frame.Zoom);
+        return new FrameOverride { Lat = lat, Lon = lon, Zoom = frame.Zoom };
+    }
+
+    /// <summary>Starts an empty route on the map the user is looking at and switches to drawing.</summary>
+    private void NewRoute()
+    {
+        if (!ConfirmDiscardRoute()) return;
+        SetExtendMode(ExtendMode.None);
+        var view = _track != null && _preview.ExportFrame is { } frame ? ToOverride(frame) : RouteStartView.Clone();
+        _settings.RoutePoints.Clear();
+        _settings.ExtraStart.Clear();
+        _settings.ExtraEnd.Clear();
+        _settings.ManualFrame = view;
+        _isRoute = true;
+        _routeDirty = false;
+        _recorded = null;
+        _gpxPath = null;
+        _projectPath = null;
+        _lastExportFolder = null;
+        UpdateTitle();
+        SetTrack(0, int.MaxValue);
+        _grid.Refresh();
+        SetExtendMode(ExtendMode.Route);
+        _restoreAutoFrame = true; // the view above was only a place to start drawing
+    }
+
+    private void ToggleRouteEditing()
+    {
+        if (_isRoute) SetExtendMode(_preview.ExtendMode == ExtendMode.Route ? ExtendMode.None : ExtendMode.Route);
+    }
+
+    private void BeginRouteEditing()
+    {
+        // Pin the frame: an automatic one would refit after every click and move the map under the cursor.
+        _restoreAutoFrame = _settings.ManualFrame == null;
+        if (_preview.ExportFrame is { } frame) _settings.ManualFrame ??= ToOverride(frame);
+        _preview.ClearRouteUndo();
+        SetPreviewMode(PreviewMode.ExportFrame);
+        Recompute();
+        string crop = _track != null && (_timeline.Start > 0 || _timeline.End < _track.Count - 1)
+            ? " ⚠ The route is cropped – only the part inside the crop is exported."
+            : "";
+        _status.Text = $"Drawing the route. {RouteHint}{crop}";
+    }
+
+    private void EndRouteEditing()
+    {
+        if (_restoreAutoFrame && _track != null) _settings.ManualFrame = null;
+        Recompute();
+        _grid.Refresh();
+        _status.Text = _track != null
+            ? $"Route: {_track.Count:N0} points, {_track.TotalDistance / 1000:0.00} km. Save it as a project (Ctrl+S) or a GPX, or export it."
+            : "A route needs at least 2 points. Continue with Edit → Edit route points.";
+    }
+
     private void SetExtendMode(ExtendMode mode)
     {
         if (mode != ExtendMode.None && _preview.AddLabelMode) SetAddLabelMode(false);
+        bool wasRoute = _preview.ExtendMode == ExtendMode.Route;
         _preview.ExtendMode = mode;
+        _btnEditRoute.Checked = _miEditRoute.Checked = mode == ExtendMode.Route;
         _miExtendStart.Checked = _btnExtendStart.Checked = mode == ExtendMode.Start;
         _miExtendEnd.Checked = _btnExtendEnd.Checked = mode == ExtendMode.End;
         _btnExtend.Text = mode switch
@@ -523,8 +672,10 @@ public sealed class MainForm : Form
             ExtendMode.End => "Extend track: END",
             _ => "Extend track",
         };
-        _btnExtend.Font = new Font(Font, mode == ExtendMode.None ? FontStyle.Regular : FontStyle.Bold);
-        if (mode == ExtendMode.None) return;
+        _btnExtend.Font = new Font(Font, mode is ExtendMode.Start or ExtendMode.End ? FontStyle.Bold : FontStyle.Regular);
+        if (mode == ExtendMode.Route && !wasRoute) BeginRouteEditing();
+        else if (mode != ExtendMode.Route && wasRoute) EndRouteEditing();
+        if (mode is ExtendMode.None or ExtendMode.Route) return;
         string where = mode == ExtendMode.Start ? "before the start (outward from the green point)" : "after the end (onward from the red point)";
         string crop = mode == ExtendMode.Start && _timeline.Start > 0 || mode == ExtendMode.End && _track != null && _timeline.End < _track.Count - 1
             ? " ⚠ The track is cropped at this end – added points will not be in the export until you reset the crop."
@@ -534,16 +685,16 @@ public sealed class MainForm : Form
 
     private void SaveGpxDialog()
     {
-        if (_track == null || _gpxPath == null) return;
+        if (_track == null) return;
         using var dlg = new SaveFileDialog
         {
             Filter = "GPX (*.gpx)|*.gpx",
-            FileName = Path.GetFileNameWithoutExtension(_gpxPath) + "_extended.gpx",
-            InitialDirectory = Path.GetDirectoryName(_gpxPath),
-            Title = "Save GPX with added points",
+            FileName = _isRoute ? "route.gpx" : TrackName + "_extended.gpx",
+            InitialDirectory = (_gpxPath ?? _projectPath) is { } known ? Path.GetDirectoryName(known) : "",
+            Title = "Save track as GPX",
         };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        if (string.Equals(Path.GetFullPath(dlg.FileName), Path.GetFullPath(_gpxPath), StringComparison.OrdinalIgnoreCase))
+        if (_gpxPath != null && string.Equals(Path.GetFullPath(dlg.FileName), Path.GetFullPath(_gpxPath), StringComparison.OrdinalIgnoreCase))
         {
             MessageBox.Show(this, "The original GPX is not overwritten (the project refers to it). Choose a different name.", Text,
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -552,6 +703,7 @@ public sealed class MainForm : Form
         try
         {
             GpxWriter.Write(dlg.FileName, _track.Points, Path.GetFileNameWithoutExtension(dlg.FileName));
+            _routeDirty = false;
             _status.Text = $"GPX saved ({_track.Count:N0} points, full track without crop): {dlg.FileName}";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -581,11 +733,15 @@ public sealed class MainForm : Form
     private string DescribePoint(int i)
     {
         var t = _track!.Points[i].Time;
-        string local = t.HasValue ? $" ({t.Value.ToLocalTime():HH:mm:ss})" : "";
+        string local = t.HasValue && !_isRoute ? $" ({t.Value.ToLocalTime():HH:mm:ss})" : ""; // a drawn route has no clock time
         return $"{FormatDuration(_track.CumTime[i])}{local} · {_track.CumDist[i] / 1000:0.00} km";
     }
 
-    private static string FormatDuration(double seconds) => TimeSpan.FromSeconds(seconds).ToString(@"h\:mm\:ss");
+    private static string FormatDuration(double seconds)
+    {
+        var ts = TimeSpan.FromSeconds(seconds);
+        return $@"{(int)ts.TotalHours}:{ts:mm\:ss}"; // total hours: a long drawn route can take days
+    }
 
     private Track? Cropped => _track?.Sub(_timeline.Start, _timeline.End);
 
@@ -594,13 +750,15 @@ public sealed class MainForm : Form
         bool has = _track != null;
         foreach (var it in _needTrack) it.Enabled = has;
         _btnExport.Enabled = _miExport.Enabled = has && _exportCts == null;
+        _btnExtend.Enabled = _miExtendStart.Enabled = _miExtendEnd.Enabled = has && !_isRoute;
+        _btnEditRoute.Enabled = _miEditRoute.Enabled = _isRoute;
         _btnAutoFrame.Enabled = _miAutoFrame.Enabled = has && _settings.ManualFrame != null;
         _preview.Settings = _settings;
         if (_track == null)
         {
-            _info.Text = "No track.";
+            _info.Text = _isRoute ? "Click in the map to add route points (at least 2)." : "No track.";
             UpdateSimplifyRow(null);
-            _preview.ExportFrame = null;
+            _preview.ExportFrame = _isRoute ? MapFrame.Fit(new Track([]), _settings) : null;
             _preview.PolylineIndices = null;
             _preview.Invalidate();
             return;
@@ -659,6 +817,11 @@ public sealed class MainForm : Form
 
     private void SetPreviewMode(PreviewMode mode)
     {
+        if (mode == PreviewMode.FullTrack && _preview.ExtendMode == ExtendMode.Route)
+        {
+            _status.Text = "The full-track view is not available while drawing the route. Press Esc to finish first.";
+            return;
+        }
         _preview.Mode = mode;
         _btnViewFrame.Checked = _miViewFrame.Checked = mode == PreviewMode.ExportFrame;
         _btnViewFull.Checked = _miViewFull.Checked = mode == PreviewMode.FullTrack;
@@ -679,6 +842,8 @@ public sealed class MainForm : Form
     {
         if (_settings.ManualFrame == null) return;
         _settings.ManualFrame = null;
+        // While drawing, fit once and stay pinned, so the next click does not move the map.
+        if (_preview.ExtendMode == ExtendMode.Route && Cropped is { } route) _settings.ManualFrame = ToOverride(MapFrame.Fit(route, _settings));
         Recompute();
         _grid.Refresh();
         _status.Text = "The frame is automatic again (fitted to the cropped track).";
@@ -704,18 +869,20 @@ public sealed class MainForm : Form
         "  • click in the map – new label, double-click – edit, drag – move, right button – menu\n\n" +
         "Extending the track (Edit → Extend track start/end)\n" +
         "  • click – new point, drag – move, click on a segment – insert point, right button – delete, Esc – done\n\n" +
+        "Drawing a route (File → New route, Ctrl+N; Edit → Edit route points, Ctrl+R)\n" +
+        "  • click – new point, drag a point – move, click on a segment – insert point, right button – delete\n" +
+        "  • drag the map – pan, wheel – zoom, Ctrl+Z – undo, Esc – done\n\n" +
         "Crop (timeline at the bottom)\n" +
         "  • green/red handle, the middle moves the whole selection\n" +
         "  • arrows ←/→ (Shift = 1 min, Ctrl = 10 min), Home/End switches the handle\n\n" +
-        "File: Ctrl+O open GPX, Ctrl+S save project, Ctrl+Shift+S save project as · Export: Ctrl+E, Ctrl+Shift+C copy .setting",
+        "File: Ctrl+N new route, Ctrl+O open GPX, Ctrl+S save project, Ctrl+Shift+S save project as · Export: Ctrl+E, Ctrl+Shift+C copy .setting",
         "Controls", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
     /// <summary>The user panned/zoomed the map in the preview: store it as the manual export frame.</summary>
     private void OnFrameChanged(MapFrame frame, bool final)
     {
         bool wasAuto = _settings.ManualFrame == null;
-        var (lat, lon) = WebMercator.FromWorld(frame.CenterX, frame.CenterY, frame.Zoom);
-        _settings.ManualFrame = new FrameOverride { Lat = lat, Lon = lon, Zoom = frame.Zoom };
+        _settings.ManualFrame = ToOverride(frame);
         if (!final) return; // the preview already shows the moved frame; refresh the rest once the drag ends
         Recompute();
         _grid.Refresh();
@@ -765,8 +932,8 @@ public sealed class MainForm : Form
     private string DefaultExportFolder()
     {
         if (_lastExportFolder != null) return _lastExportFolder;
-        string dir = Path.GetDirectoryName(_gpxPath!) ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        return Path.Combine(dir, Path.GetFileNameWithoutExtension(_gpxPath) + "_fusion");
+        string? dir = (_gpxPath ?? _projectPath) is { } known ? Path.GetDirectoryName(known) : null;
+        return Path.Combine(dir ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), TrackName + "_fusion");
     }
 
     private async Task ExportAsync()
@@ -802,7 +969,9 @@ public sealed class MainForm : Form
             string missing = result.MissingTiles > 0 ? $"\n\n⚠ {result.MissingTiles} tiles could not be downloaded (gray areas). Try exporting again." : "";
             var answer = MessageBox.Show(this,
                 $"Export finished.\n\n{Exporter.MapFileName}, {Exporter.SettingFileName} ({result.PolylinePoints} polyline points), " +
-                $"{Exporter.TrackFileName}, {Exporter.CsvFileName}{missing}\n\nOpen the folder?",
+                $"{Exporter.TrackFileName}, {Exporter.CsvFileName}{missing}\n\n" +
+                $"Tip: drag {Exporter.SettingFileName} from the folder into the Fusion Node editor (or use Copy .setting + Ctrl+V).\n\n" +
+                "Open the folder?",
                 Text, MessageBoxButtons.YesNo, result.MissingTiles > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
             if (answer == DialogResult.Yes)
                 Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });

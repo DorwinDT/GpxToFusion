@@ -101,6 +101,7 @@
     <li><a href="#workflow">Workflow</a>
       <ol>
         <li><a href="#open">Open a GPX</a></li>
+        <li><a href="#draw">Or draw a route</a></li>
         <li><a href="#crop">Crop the track</a></li>
         <li><a href="#extend">Extend the track</a></li>
         <li><a href="#map">Map &amp; frame</a></li>
@@ -133,7 +134,7 @@
 
 <header class="hero">
   <h1>GPX <span>→</span> Fusion</h1>
-  <p class="lead">Turn a GPX track into a map background and an animatable <strong>Fusion polyline</strong> for DaVinci Resolve. <span style="white-space:nowrap">Version 1.0</span></p>
+  <p class="lead">Turn a GPX track into a map background and an animatable <strong>Fusion polyline</strong> for DaVinci Resolve. <span style="white-space:nowrap">Version 1.5</span></p>
   <a class="btn primary" href="https://github.com/DorwinDT/GpxToFusion">View on GitHub</a>
   <a class="btn" href="#workflow">Quick start</a>
 </header>
@@ -141,7 +142,7 @@
 <!-- ============================================================ -->
 <section id="overview">
 <h2>Overview</h2>
-<p>GPX → Fusion is a small Windows app. You open a GPX file from your watch, phone or bike computer, choose the part of the track you want, and export:</p>
+<p>GPX → Fusion is a small Windows app. You open a GPX file from your watch, phone or bike computer (or draw a route by clicking in the map), choose the part of the track you want, and export:</p>
 <div class="cards">
   <div class="card"><b>🗺️ map.png</b><p>A map background (OpenStreetMap, satellite or CARTO) at up to 8K, framed around your track.</p></div>
   <div class="card"><b>〰️ GpxTrack.setting</b><p>Native Fusion nodes: the track as a polyline mask, its color and the merge. Paste them with <kbd>Ctrl</kbd>+<kbd>V</kbd>.</p></div>
@@ -176,7 +177,7 @@ dotnet run --project src/GpxToFusion -- "C:\path\to\track.gpx"</code></pre>
 </figure>
 <table>
   <tr><th>Area</th><th>What it does</th></tr>
-  <tr><td>Menu &amp; toolbar</td><td>File, Export, View, Edit, Help (<em>Controls</em>, <em>User guide (online)</em> and <em>About</em> with the version number). The toolbar has the most common commands: Export, Copy .setting, preview mode, Auto frame, Label and Extend track.</td></tr>
+  <tr><td>Menu &amp; toolbar</td><td>File, Export, View, Edit, Help (<em>Controls</em>, <em>User guide (online)</em> and <em>About</em> with the version number). The toolbar has the most common commands: New route, Export, Copy .setting, preview mode, Auto frame, Label, Extend track and Edit route.</td></tr>
   <tr><td>Map preview</td><td>Shows exactly what <code>map.png</code> will contain (<em>Frame</em> mode, <kbd>F5</kbd>) or the whole track with the export frame outlined (<em>Full track</em>, <kbd>F6</kbd>). Drag to pan, wheel to zoom.</td></tr>
   <tr><td>Settings panel</td><td>All export options grouped as Map, Track, Fusion, Labels and Added points. The box below shows help for the selected option.</td></tr>
   <tr><td>Track detail</td><td>Slider for how many points the Fusion polyline gets (same as <em>Simplification (px)</em>). Move it right for fewer points and faster rendering in Resolve. The tolerance and the point count are shown next to it, and the line in the preview is drawn from the simplified points, so you can see when it starts cutting corners.</td></tr>
@@ -193,6 +194,19 @@ dotnet run --project src/GpxToFusion -- "C:\path\to\track.gpx"</code></pre>
     <p><em>File → Open GPX…</em> (<kbd>Ctrl</kbd>+<kbd>O</kbd>) or drag a <code>.gpx</code> file into the window. The track is shown on the map and the timeline fills with speed and elevation. You can also save everything as a project (<code>*.g2f.json</code>) and load it later. <em>File → Save project</em> (<kbd>Ctrl</kbd>+<kbd>S</kbd>) saves under the current name; the first time, or after opening a new GPX, it asks for a file name. <em>Save project as…</em> (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>) saves a copy under a new name. The window title shows the project name.</p>
   </li>
 
+  <li id="draw"><b>Or draw a route</b> <span style="color:var(--muted)">(instead of opening a GPX)</span>
+    <p>No GPX file? Use <em>File → New route</em> (<kbd>Ctrl</kbd>+<kbd>N</kbd>) and click the route into the map, point by point. The points are joined by straight lines. If no track is loaded, the map starts on an overview of Central Europe; zoom in to your area first.</p>
+    <ul>
+      <li><b>Click</b> = new point at the end of the route, <b>drag a point</b> = move it, <b>click on a segment</b> = insert a point (you can drag it right away), <b>right button on a point</b> = delete.</li>
+      <li><b>Drag the map</b> = pan, <b>wheel</b> = zoom (<kbd>Shift</kbd> = fine), <kbd>Ctrl</kbd>+<kbd>Z</kbd> = undo, <kbd>Esc</kbd> = done.</li>
+      <li>The map stays still while you draw. When you finish, the frame fits the route automatically. To set it by hand, adjust it afterwards as in <a href="#map">Map &amp; frame</a>.</li>
+      <li>To change the route later, use <em>Edit → Edit route points</em> (<kbd>Ctrl</kbd>+<kbd>R</kbd>).</li>
+      <li>Times are computed from <em>5. Added points → Speed of added segments</em> (0 = 4.5 km/h), and the route has no elevation.</li>
+      <li>Save the route with <em>File → Save project</em> to keep editing it later, or with <em>File → Save track as GPX…</em> to get a normal GPX file. A saved GPX opens as a recorded track, so its points can no longer be edited one by one.</li>
+    </ul>
+    <p>From here on, a drawn route works like any other track: you can crop it, add labels and export it. The app asks before discarding a route with unsaved changes.</p>
+  </li>
+
   <li id="crop"><b>Crop the track.</b>
     <p>Drag the <span style="color:#1a7f37">green</span> handle (start) and the <span style="color:#cf222e">red</span> handle (end). Dragging the middle moves the whole selection. For exact values use the <em>Start</em> / <em>End</em> fields under the timeline. <em>Reset crop</em> selects the whole track again.</p>
     <p>Keyboard: <kbd>←</kbd>/<kbd>→</kbd> move the selected handle by 1 point, with <kbd>Shift</kbd> by 60 and with <kbd>Ctrl</kbd> by 600 points (about 1 and 10 minutes for a track recorded every second). <kbd>Home</kbd>/<kbd>End</kbd> select the start or end handle.</p>
@@ -203,7 +217,7 @@ dotnet run --project src/GpxToFusion -- "C:\path\to\track.gpx"</code></pre>
     <ul>
       <li><b>Click</b> = new point, <b>drag</b> = move a point, <b>click on a segment</b> = insert a point, <b>right button</b> = delete, <kbd>Esc</kbd> = done.</li>
       <li>Times for the added points are computed from <em>5. Added points → Speed of added segments</em> (0 = your moving average from the GPX). Elevation is copied from the nearest recorded point.</li>
-      <li>Added points are saved in the project. The original GPX is never changed; <em>File → Save GPX with added points…</em> writes a new file.</li>
+      <li>Added points are saved in the project. The original GPX is never changed; <em>File → Save track as GPX…</em> writes a new file.</li>
     </ul>
     <div class="note warn"><p>If the track is cropped at that end, the added points are not exported until you reset the crop. The status bar warns you about this.</p></div>
   </li>
@@ -248,8 +262,12 @@ dotnet run --project src/GpxToFusion -- "C:\path\to\track.gpx"</code></pre>
 <h3 id="paste">Paste the nodes</h3>
 <ol>
   <li>Put a <b>Fusion Composition</b> on the timeline (<em>Effects → Toolbox → Effects → Fusion Composition</em>), or open the Fusion page on any clip.</li>
-  <li>In the app click <em>Copy .setting</em> (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>). Export first, so the Loader points to the right <code>map.png</code>.</li>
-  <li>On the <b>Fusion</b> page click into the Node editor and press <kbd>Ctrl</kbd>+<kbd>V</kbd>. You can also drag <code>GpxTrack.setting</code> into the Node editor.</li>
+  <li>Export first, so the Loader points to the right <code>map.png</code>. Then bring the nodes into the <b>Fusion</b> page Node editor in one of two ways:
+    <ul>
+      <li><b>Drag and drop:</b> drag <code>GpxTrack.setting</code> from the export folder (Windows Explorer) into the Node editor.</li>
+      <li><b>Clipboard:</b> in the app click <em>Copy .setting</em> (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>), then click into the Node editor and press <kbd>Ctrl</kbd>+<kbd>V</kbd>.</li>
+    </ul>
+  </li>
   <li>Connect the output of <code>MergeCalib</code> (or the last merge) to <code>MediaOut1</code>.</li>
 </ol>
 
@@ -310,7 +328,7 @@ dotnet run --project src/GpxToFusion -- "C:\path\to\track.gpx"</code></pre>
 <h3>1. Map</h3>
 <table>
   <tr><th>Setting</th><th>Description</th></tr>
-  <tr><td>Base map</td><td>OpenStreetMap, Satellite (Esri World Imagery), CARTO dark, CARTO light.</td></tr>
+  <tr><td>Base map</td><td>OpenStreetMap (place names in the local script), OpenStreetMap – Latin labels (useful for Arabic or Cyrillic regions; big cities show the Latin name, German where one exists, next to the local one), National Geographic – English labels (up to zoom 12, so for routes between cities rather than a walk), Satellite (Esri World Imagery), CARTO dark, CARTO light.</td></tr>
   <tr><td>Resolution / Width / Height</td><td>Size of <code>map.png</code>. Presets: HD, 4K UHD, 8K, vertical HD/4K, square, or custom.</td></tr>
   <tr><td>Padding (%)</td><td>Free space around the track on each side.</td></tr>
   <tr><td>Extra zoom-out</td><td>0 = the track fills the frame; 1 = the map covers a 2× larger area. Fractions allowed.</td></tr>
@@ -351,7 +369,7 @@ dotnet run --project src/GpxToFusion -- "C:\path\to\track.gpx"</code></pre>
 <h3>5. Added points</h3>
 <table>
   <tr><th>Setting</th><th>Description</th></tr>
-  <tr><td>Speed of added segments (km/h)</td><td>Used to compute times for added points. 0 = moving average from the GPX.</td></tr>
+  <tr><td>Speed of added segments (km/h)</td><td>Used to compute times for added points and drawn routes. 0 = moving average from the GPX (4.5 km/h for a drawn route).</td></tr>
   <tr><td>Added start / Added end</td><td>Number of points added before the start / after the end.</td></tr>
 </table>
 </section>
@@ -362,6 +380,9 @@ dotnet run --project src/GpxToFusion -- "C:\path\to\track.gpx"</code></pre>
 <p>Press <kbd>F1</kbd> in the app for the same overview.</p>
 <table>
   <tr><th>Keys / mouse</th><th>Action</th></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>N</kbd></td><td>New route (draw on the map)</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>R</kbd></td><td>Edit route points</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo the last route edit (while drawing)</td></tr>
   <tr><td><kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>Open GPX</td></tr>
   <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd> / <kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Load / save project</td></tr>
   <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></td><td>Save project as…</td></tr>
@@ -374,7 +395,7 @@ dotnet run --project src/GpxToFusion -- "C:\path\to\track.gpx"</code></pre>
   <tr><td>Mouse wheel (<kbd>Shift</kbd> = fine)</td><td>Zoom the frame</td></tr>
   <tr><td><kbd>←</kbd> <kbd>→</kbd> (<kbd>Shift</kbd> ×60, <kbd>Ctrl</kbd> ×600)</td><td>Move the selected crop handle by points</td></tr>
   <tr><td><kbd>Home</kbd> / <kbd>End</kbd></td><td>Select the start / end crop handle</td></tr>
-  <tr><td><kbd>Esc</kbd></td><td>Leave label or extend mode</td></tr>
+  <tr><td><kbd>Esc</kbd></td><td>Leave label, extend or route drawing mode</td></tr>
   <tr><td><kbd>F1</kbd></td><td>Controls overview</td></tr>
 </table>
 </section>
@@ -411,6 +432,8 @@ dotnet run --project src/GpxToFusion -- "C:\path\to\track.gpx"</code></pre>
 <h2>Map sources &amp; licenses</h2>
 <ul>
   <li><b>OpenStreetMap</b>: © OpenStreetMap contributors. Please respect the <a href="https://operations.osmfoundation.org/policies/tiles/">tile usage policy</a>; the app downloads at most 2 tiles at a time and caches them.</li>
+  <li><b>OpenStreetMap – Latin labels</b>: © OpenStreetMap contributors, tiles from openstreetmap.de.</li>
+  <li><b>National Geographic</b>: Tiles © Esri — National Geographic, Esri, DeLorme, NAVTEQ, UN-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC.</li>
   <li><b>Esri World Imagery</b>: Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics.</li>
   <li><b>CARTO</b>: © OpenStreetMap contributors © CARTO.</li>
 </ul>

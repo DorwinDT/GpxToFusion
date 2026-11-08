@@ -38,18 +38,33 @@ jobs:
         shell: pwsh
         run: |
           Remove-Item publish/*.pdb -ErrorAction SilentlyContinue
-          Copy-Item LICENSE, README.md publish/
+          Copy-Item LICENSE, README.md, CHANGELOG.md publish/
           Compress-Archive -Path publish/* -DestinationPath "GpxToFusion-${{ github.ref_name }}-win-x64.zip"
+
+      # The notes for this version come from its "## X.Y.Z" section in CHANGELOG.md.
+      - name: Release notes
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $ver = [regex]::Escape($tag.TrimStart('v'))
+          $changelog = Get-Content CHANGELOG.md -Raw -Encoding utf8
+          $section = [regex]::Match($changelog, "(?ms)^## $ver\b[^\r\n]*\r?\n(.*?)(?=^## |\z)")
+          if (-not $section.Success) { throw "CHANGELOG.md has no section for $tag" }
+          $notes = @(
+            "**Download** ``GpxToFusion-$tag-win-x64.zip``, unzip it anywhere and run ``GpxToFusion.exe``."
+            "Windows 10/11 (64-bit). No installation and no .NET runtime needed."
+            ""
+            "📖 User guide: https://dorwindt.github.io/GpxToFusion/"
+            ""
+            "Windows SmartScreen may warn because the exe is not code-signed: click *More info → Run anyway*."
+            ""
+            $section.Groups[1].Value.Trim()
+          )
+          $notes -join "`n" | Set-Content release-notes.md -Encoding utf8
 
       - uses: softprops/action-gh-release@v2
         with:
           name: GPX → Fusion ${{ github.ref_name }}
           files: GpxToFusion-${{ github.ref_name }}-win-x64.zip
           generate_release_notes: true
-          body: |
-            **Download** `GpxToFusion-${{ github.ref_name }}-win-x64.zip`, unzip it anywhere and run `GpxToFusion.exe`.
-            Windows 10/11 (64-bit). No installation and no .NET runtime needed.
-
-            📖 User guide: https://dorwindt.github.io/GpxToFusion/
-
-            Windows SmartScreen may warn because the exe is not code-signed: click *More info → Run anyway*.
+          body_path: release-notes.md

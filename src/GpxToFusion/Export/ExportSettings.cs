@@ -11,6 +11,8 @@ namespace GpxToFusion.Export;
 public enum MapStyle
 {
     [Description("OpenStreetMap")] OpenStreetMap,
+    [Description("OpenStreetMap – Latin labels")] OpenStreetMapLatin,
+    [Description("National Geographic – English labels (up to zoom 12)")] NatGeo,
     [Description("Satellite (Esri World Imagery)")] Satellite,
     [Description("CARTO dark")] CartoDark,
     [Description("CARTO light")] CartoLight,
@@ -133,7 +135,7 @@ public sealed class ExportSettings
     // ---------------- Added points ----------------
 
     [Category("5. Added points"), DisplayName("Speed of added segments (km/h)"),
-     Description("Points added before the start / after the end have no tracker time. It is computed from this speed. 0 = moving average speed from the GPX.")]
+     Description("Added points and drawn routes have no tracker time. It is computed from this speed. 0 = moving average speed from the GPX (4.5 km/h for a drawn route).")]
     public double ExtensionSpeedKmh { get; set; } = 0;
 
     [Category("5. Added points"), DisplayName("Added start"),
@@ -152,6 +154,10 @@ public sealed class ExportSettings
     /// <summary>Points added after the recorded end, index 0 = next to the last recorded point.</summary>
     [Browsable(false)]
     public List<GeoPoint> ExtraEnd { get; set; } = [];
+
+    /// <summary>Route drawn on the map instead of opening a GPX, in travel order; empty for a GPX project.</summary>
+    [Browsable(false)]
+    public List<GeoPoint> RoutePoints { get; set; } = [];
 
     // ---------------- Labels ----------------
 
@@ -206,6 +212,8 @@ public sealed class ExportSettings
     [Browsable(false), JsonIgnore]
     public TileSource TileSource => Style switch
     {
+        MapStyle.OpenStreetMapLatin => TileSource.OpenStreetMapLatin,
+        MapStyle.NatGeo => TileSource.NatGeo,
         MapStyle.Satellite => TileSource.EsriImagery,
         MapStyle.CartoDark => TileSource.CartoDark,
         MapStyle.CartoLight => TileSource.CartoLight,
@@ -244,6 +252,7 @@ public sealed class ExportSettings
         c.Labels = Labels.Select(l => l.Clone()).ToList();
         c.ExtraStart = ExtraStart.Select(p => p.Clone()).ToList();
         c.ExtraEnd = ExtraEnd.Select(p => p.Clone()).ToList();
+        c.RoutePoints = RoutePoints.Select(p => p.Clone()).ToList();
         c.ManualFrame = ManualFrame?.Clone();
         return c;
     }

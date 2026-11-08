@@ -20,6 +20,8 @@ public enum ExtendMode
     None,
     Start,
     End,
+    /// <summary>Drawing the whole route (no GPX): a click appends a point, a drag on the empty map pans.</summary>
+    Route,
 }
 
 /// <summary>
@@ -66,6 +68,9 @@ public sealed class MapPreview : SKControl
     public List<GeoPoint> ExtraStart { get; set; } = [];
     [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public List<GeoPoint> ExtraEnd { get; set; } = [];
+    /// <summary>Points of a drawn route (shared with ExportSettings, edited in place).</summary>
+    [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public List<GeoPoint> Route { get; set; } = [];
     /// <summary>First / last recorded GPX point - the chains of added points hang on these.</summary>
     [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public TrackPoint? StartAnchor { get; set; }
@@ -110,8 +115,11 @@ public sealed class MapPreview : SKControl
     private MapFrame? _panFrame;
     private Point _panStart;
     private bool _panning;
-    /// <summary>Left press in add-label mode: a click adds a label, a drag pans.</summary>
-    private bool _panIsLabelClick;
+    /// <summary>Left press in add-label or route mode: a click adds a label / route point, a drag pans.</summary>
+    private bool _panClickAdds;
+    private readonly Stack<GeoPoint[]> _routeUndo = new();
+    /// <summary>A route point was grabbed but not moved yet; the undo state is saved on the first move.</summary>
+    private bool _undoOnMove;
 
     public MapPreview(TileCache cache)
     {
@@ -132,8 +140,10 @@ public sealed class MapPreview : SKControl
         return null;
     }
 
-    private IEnumerable<(List<GeoPoint> List, TrackPoint Anchor)> Chains()
+    /// <summary>Editable point chains. Added points hang on a recorded point; a drawn route has no anchor.</summary>
+    private IEnumerable<(List<GeoPoint> List, TrackPoint? Anchor)> Chains()
     {
+        if (_extendMode == ExtendMode.Route) { yield return (Route, null); yield break; }
         if (StartAnchor != null) yield return (ExtraStart, StartAnchor);
         if (EndAnchor != null) yield return (ExtraEnd, EndAnchor);
     }
@@ -156,8 +166,9 @@ public sealed class MapPreview : SKControl
         if (_view == null) return null;
         foreach (var (list, anchor) in Chains())
         {
-            var (px, py) = _view.ToPixel(anchor.Lat, anchor.Lon);
-            for (int i = 0; i < list.Count; i++)
+            if (list.Count == 0) continue;
+            var (px, py) = anchor != null ? _view.ToPixel(anchor.Lat, anchor.Lon) : _view.ToPixel(list[0].Lat, list[0].Lon);
+            for (int i = anchor != null ? 0 : 1; i < list.Count; i++)
             {
                 var (qx, qy) = _view.ToPixel(list[i].Lat, list[i].Lon);
                 if (DistToSegment(p.X, p.Y, px, py, qx, qy) <= 5) return (list, i);
@@ -191,6 +202,7 @@ public sealed class MapPreview : SKControl
         if (e.Button == MouseButtons.Right)
         {
             if (pt is not { } del) return false;
+            PushRouteUndo();
             del.List.RemoveAt(del.Index);
             _hoverPt = null;
             ExtensionChanged?.Invoke(true);
@@ -200,21 +212,45 @@ public sealed class MapPreview : SKControl
         if (pt is { } hit)
         {
             BeginPointDrag(hit.List, hit.Index);
+            _undoOnMove = true;
             return true;
         }
         if (HitLabel(e.Location) != null) return false; // let the label be dragged
         if (ToGeo(e.X, e.Y) is not { } g) return false;
         if (HitExtraSegment(e.Location) is { } seg)
         {
+            PushRouteUndo();
             seg.List.Insert(seg.Index, new GeoPoint(g.Lat, g.Lon));
             BeginPointDrag(seg.List, seg.Index);
             ExtensionChanged?.Invoke(false);
+            return true;
+        }
+        if (_extendMode == ExtendMode.Route)
+        {
+            BeginPan(e.Location, clickAdds: true); // the point is added on release, unless the press turns into a pan
             return true;
         }
         var target = _extendMode == ExtendMode.Start ? ExtraStart : ExtraEnd;
         target.Add(new GeoPoint(g.Lat, g.Lon));
         ExtensionChanged?.Invoke(true);
         return true;
+    }
+
+    private void PushRouteUndo()
+    {
+        if (_extendMode == ExtendMode.Route) _routeUndo.Push(Route.Select(p => p.Clone()).ToArray());
+    }
+
+    public void ClearRouteUndo() => _routeUndo.Clear();
+
+    /// <summary>Reverts the last change of the drawn route.</summary>
+    public void UndoRoute()
+    {
+        if (_dragPt != null || _panFrame != null || _routeUndo.Count == 0) return;
+        Route.Clear();
+        Route.AddRange(_routeUndo.Pop());
+        _hoverPt = null;
+        ExtensionChanged?.Invoke(true);
     }
 
     private (double Lat, double Lon)? ToGeo(float x, float y) =>
@@ -232,7 +268,7 @@ public sealed class MapPreview : SKControl
             _labelMenu.Show(this, e.Location);
             return;
         }
-        if (e.Button == MouseButtons.Middle) { BeginPan(e.Location, labelClick: false); return; }
+        if (e.Button == MouseButtons.Middle) { BeginPan(e.Location, clickAdds: false); return; }
         if (e.Button != MouseButtons.Left) return;
         if (hit != null && _view != null)
         {
@@ -244,23 +280,23 @@ public sealed class MapPreview : SKControl
         }
         else if (AddLabelMode)
         {
-            BeginPan(e.Location, labelClick: true);
+            BeginPan(e.Location, clickAdds: true);
         }
         else if (Mode == PreviewMode.ExportFrame || _exportRect.Contains(e.X, e.Y))
         {
-            BeginPan(e.Location, labelClick: false);
+            BeginPan(e.Location, clickAdds: false);
         }
     }
 
     // =============== pan / zoom of the export frame ===============
 
-    private void BeginPan(Point p, bool labelClick)
+    private void BeginPan(Point p, bool clickAdds)
     {
         if (ExportFrame == null || _view == null) return;
         _panFrame = ExportFrame;
         _panStart = p;
         _panning = false;
-        _panIsLabelClick = labelClick;
+        _panClickAdds = clickAdds;
         Capture = true;
     }
 
@@ -286,18 +322,27 @@ public sealed class MapPreview : SKControl
         Invalidate();
     }
 
-    /// <returns>true when a pan (or pending add-label click) was in progress.</returns>
+    /// <returns>true when a pan (or pending add click) was in progress.</returns>
     private bool EndPan()
     {
         if (_panFrame == null) return false;
-        bool panned = _panning, labelClick = _panIsLabelClick;
+        bool panned = _panning, clickAdds = _panClickAdds;
         var start = _panStart;
         _panFrame = null;
         _panning = false;
         Capture = false;
         Cursor = AddLabelMode || _extendMode != ExtendMode.None ? Cursors.Cross : Cursors.Default;
         if (panned && ExportFrame != null) FrameChanged?.Invoke(ExportFrame, true);
-        else if (labelClick && ToGeo(start.X, start.Y) is { } g) LabelAddRequested?.Invoke(g.Lat, g.Lon);
+        else if (clickAdds && ToGeo(start.X, start.Y) is { } g)
+        {
+            if (_extendMode == ExtendMode.Route)
+            {
+                PushRouteUndo();
+                Route.Add(new GeoPoint(g.Lat, g.Lon));
+                ExtensionChanged?.Invoke(true);
+            }
+            else LabelAddRequested?.Invoke(g.Lat, g.Lon);
+        }
         return true;
     }
 
@@ -305,7 +350,8 @@ public sealed class MapPreview : SKControl
     {
         base.OnMouseWheel(e);
         if (ExportFrame is not { } ef || _view == null || _panFrame != null || _dragPt != null || _drag != null) return;
-        double step = (ModifierKeys & Keys.Shift) != 0 ? 0.05 : 0.25;
+        // Drawing starts from a far-away view, so the route editor zooms in bigger steps.
+        double step = (ModifierKeys & Keys.Shift) != 0 ? 0.05 : _extendMode == ExtendMode.Route ? 0.5 : 0.25;
         double z = Math.Clamp(ef.Zoom + e.Delta / 120.0 * step, 1, Settings.TileSource.MaxZoom);
         double dz = z - ef.Zoom;
         if (Math.Abs(dz) < 1e-9) return;
@@ -332,6 +378,7 @@ public sealed class MapPreview : SKControl
         {
             if (ToGeo(e.X, e.Y) is { } g && dp.Index < dp.List.Count)
             {
+                if (_undoOnMove) { PushRouteUndo(); _undoOnMove = false; }
                 dp.List[dp.Index].Lat = g.Lat;
                 dp.List[dp.Index].Lon = g.Lon;
                 ExtensionChanged?.Invoke(false);
@@ -372,6 +419,7 @@ public sealed class MapPreview : SKControl
         if (_dragPt != null)
         {
             _dragPt = null;
+            _undoOnMove = false;
             _frozenView = null;
             Capture = false;
             ExtensionChanged?.Invoke(true);
@@ -419,13 +467,15 @@ public sealed class MapPreview : SKControl
         var canvas = e.Surface.Canvas;
         int cw = e.Info.Width, ch = e.Info.Height;
         canvas.Clear(new SKColor(40, 42, 46));
-        if (FullTrack == null || FullTrack.Count < 2 || ExportFrame == null || cw < 10 || ch < 10)
+        // While drawing a route the map is needed even before there are two points to make a track.
+        bool hasTrack = FullTrack is { Count: >= 2 };
+        if ((!hasTrack && _extendMode != ExtendMode.Route) || ExportFrame == null || cw < 10 || ch < 10)
         {
             _view = null;
             _labelHits = [];
             using var f = new SKFont(SKTypeface.FromFamilyName("Segoe UI"), 16);
             using var p = new SKPaint { Color = SKColors.Gray, IsAntialias = true };
-            canvas.DrawText("Open a GPX file (Ctrl+O) or drag it here", cw / 2f, ch / 2f, SKTextAlign.Center, f, p);
+            canvas.DrawText("Open a GPX file (Ctrl+O), drag it here, or draw a new route (Ctrl+N)", cw / 2f, ch / 2f, SKTextAlign.Center, f, p);
             return;
         }
 
@@ -452,7 +502,7 @@ public sealed class MapPreview : SKControl
         }
         else
         {
-            var b = FullTrack.Bounds();
+            var b = FullTrack!.Bounds();
             double zoom = WebMercator.FitZoom(b.MinLat, b.MinLon, b.MaxLat, b.MaxLon, cw, ch, 0.06, src.MaxZoom);
             var (x0, y0) = WebMercator.ToWorld(b.MaxLat, b.MinLon, zoom);
             var (x1, y1) = WebMercator.ToWorld(b.MinLat, b.MaxLon, zoom);
@@ -489,22 +539,25 @@ public sealed class MapPreview : SKControl
 
         // Track
         float lineW = (float)Math.Max(1.5, Settings.LineWidthPx * exportRect.Width / ef.Width);
-        using var ghostPath = BuildPath(view, 0, FullTrack.Count - 1);
-        using var cropPath = PolylineIndices is { Count: >= 2 } idx ? BuildPath(view, idx) : BuildPath(view, CropStart, CropEnd);
-        using (var ghost = new SKPaint
-               {
-                   IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = Math.Max(1.5f, lineW * 0.6f),
-                   Color = new SKColor(120, 120, 130, 170), StrokeJoin = SKStrokeJoin.Round, StrokeCap = SKStrokeCap.Round,
-               })
-            canvas.DrawPath(ghostPath, ghost);
+        if (hasTrack)
+        {
+            using var ghostPath = BuildPath(view, 0, FullTrack!.Count - 1);
+            using var cropPath = PolylineIndices is { Count: >= 2 } idx ? BuildPath(view, idx) : BuildPath(view, CropStart, CropEnd);
+            using (var ghost = new SKPaint
+                   {
+                       IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = Math.Max(1.5f, lineW * 0.6f),
+                       Color = new SKColor(120, 120, 130, 170), StrokeJoin = SKStrokeJoin.Round, StrokeCap = SKStrokeCap.Round,
+                   })
+                canvas.DrawPath(ghostPath, ghost);
 
-        var lc = Settings.LineColor;
-        using (var line = new SKPaint
-               {
-                   IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = lineW,
-                   Color = new SKColor(lc.R, lc.G, lc.B), StrokeJoin = SKStrokeJoin.Round, StrokeCap = SKStrokeCap.Round,
-               })
-            canvas.DrawPath(cropPath, line);
+            var lc = Settings.LineColor;
+            using (var line = new SKPaint
+                   {
+                       IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = lineW,
+                       Color = new SKColor(lc.R, lc.G, lc.B), StrokeJoin = SKStrokeJoin.Round, StrokeCap = SKStrokeCap.Round,
+                   })
+                canvas.DrawPath(cropPath, line);
+        }
 
         DrawExtensions(canvas, view, lineW);
 
@@ -529,9 +582,10 @@ public sealed class MapPreview : SKControl
             canvas.DrawCircle((float)ax, (float)ay, 3, dot);
         }
 
+        if (!hasTrack) return;
         DrawMarker(canvas, view, CropStart, new SKColor(40, 200, 60));
         DrawMarker(canvas, view, CropEnd, new SKColor(230, 40, 40));
-        if (HighlightIndex >= 0 && HighlightIndex < FullTrack.Count)
+        if (HighlightIndex >= 0 && HighlightIndex < FullTrack!.Count)
             DrawMarker(canvas, view, HighlightIndex, SKColors.White, 5);
     }
 
@@ -550,8 +604,8 @@ public sealed class MapPreview : SKControl
         {
             if (list.Count == 0) continue;
             var pb = new SKPathBuilder();
-            var (ax, ay) = view.ToPixel(anchor.Lat, anchor.Lon);
-            pb.MoveTo((float)ax, (float)ay);
+            var first = anchor != null ? view.ToPixel(anchor.Lat, anchor.Lon) : view.ToPixel(list[0].Lat, list[0].Lon);
+            pb.MoveTo((float)first.X, (float)first.Y);
             foreach (var g in list)
             {
                 var (x, y) = view.ToPixel(g.Lat, g.Lon);

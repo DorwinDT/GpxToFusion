@@ -20,9 +20,10 @@ or start `GpxToFusion.exe` and open a GPX with the button / drag it into the win
 All commands are in the top menu (File, Export, View, Edit); the most common ones are also in the toolbar below it. **F1** shows an overview of mouse controls and keyboard shortcuts.
 
 1. **Open a GPX.** At the bottom there is a timeline with speed (yellow) and elevation (blue).
+   - **Or draw a route** instead: **New route** (Ctrl+N) and click the points into the map. **Drag** a point = move, **click on a segment** = insert, **right button** = delete, drag the map = pan, wheel = zoom, **Ctrl+Z** = undo, **Esc** = done. *Edit route* (Ctrl+R) changes it later. Times come from *5. Added points → Speed* (0 = 4.5 km/h). Save it in a project to keep it editable, or with *File → Save track as GPX…* as a normal GPX.
 2. **Crop the track.** The green handle is the start, the red one the end. Drag the middle to move the whole selection. Set exact values in the *Start/End* fields. Keys: ←/→ = 1 point, Shift = 60 points, Ctrl = 600 points, Home/End = select handle.
-3. **Extend the track** (optional, e.g. when you started the tracker late): **Extend track → Start / End** and click in the map. Points chain outward from the green (start) or red (end) point and are joined by straight lines. **Drag** a point = move, **click on a segment** = insert a point (you can drag it right away), **right button** = delete, **Esc** = done. Added segments are shown as a dashed line in the preview. Their time is computed from *5. Added points → Speed* (0 = moving average from the GPX); elevation is taken from the end point. The points are saved in the project and the original GPX stays untouched; *File → Save GPX with added points…* writes a new GPX with the whole track.
-4. **Set up the map** (panel on the right): base map (OSM / satellite / CARTO), resolution, padding, extra zoom-out, darkening, line color and width.
+3. **Extend the track** (optional, e.g. when you started the tracker late): **Extend track → Start / End** and click in the map. Points chain outward from the green (start) or red (end) point and are joined by straight lines. **Drag** a point = move, **click on a segment** = insert a point (you can drag it right away), **right button** = delete, **Esc** = done. Added segments are shown as a dashed line in the preview. Their time is computed from *5. Added points → Speed* (0 = moving average from the GPX); elevation is taken from the end point. The points are saved in the project and the original GPX stays untouched; *File → Save track as GPX…* writes a new GPX with the whole track.
+4. **Set up the map** (panel on the right): base map (OSM / OSM with Latin labels / National Geographic with English labels, up to zoom 12 / satellite / CARTO), resolution, padding, extra zoom-out, darkening, line color and width.
    - **Track detail** slider (above the info box): fewer polyline points = faster rendering in Resolve. The preview line is drawn from the simplified points; the point count is shown next to the slider.
    - The preview shows the exact `map.png` frame. The **Full track** button (F6) shows the whole track with the frame outline.
    - **Manual frame**: in the preview, **drag the map** with the mouse (or with the middle button while adding labels or points) and use the **wheel** to zoom in/out (Shift = finer). In *full track* mode you drag the frame outline directly. The frame is saved in the project and stays even when you change the crop. The **Auto frame** button (Ctrl+0) restores the automatic frame fitted to the track (so does changing padding or extra zoom-out).
@@ -43,7 +44,7 @@ Tiles are stored in `%LOCALAPPDATA%\GpxToFusion\tiles`, so a second export is in
 ## Importing into DaVinci Resolve
 
 1. Put a **Fusion Composition** on the timeline (Effects → Toolbox → Effects → Fusion Composition), or open the Fusion page on any clip.
-2. On the **Fusion** page, click into the Node editor and press **Ctrl+V**. Copy the content of `GpxTrack.setting` with the *Copy .setting* button (Ctrl+Shift+C), or drag the file into the Node editor.
+2. On the **Fusion** page, get the nodes into the Node editor: **drag `GpxTrack.setting`** from the export folder into it, or click *Copy .setting* (Ctrl+Shift+C) in the app and press **Ctrl+V** in the Node editor.
 3. Connect the **`MergeCalib`** (or `MergeTrack`) output to **`MediaOut1`**.
 
 ### Nodes
@@ -83,6 +84,8 @@ In Fusion, select a node and press **1** to show it in the viewer:
 ## Map sources and licenses
 
 - OpenStreetMap: © OpenStreetMap contributors (follow the [tile usage policy](https://operations.osmfoundation.org/policies/tiles/); the app downloads at most 2 tiles at a time and caches them)
+- OpenStreetMap – Latin labels: © OpenStreetMap contributors, tiles from openstreetmap.de
+- National Geographic: Tiles © Esri — National Geographic, Esri, DeLorme, NAVTEQ, UN-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC
 - Esri World Imagery: Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics
 - CARTO: © OpenStreetMap contributors © CARTO
 

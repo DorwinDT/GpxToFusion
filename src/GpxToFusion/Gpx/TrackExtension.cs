@@ -26,7 +26,7 @@ public static class TrackExtension
         var result = new List<TrackPoint>(recorded.Count + before.Count + after.Count);
         if (recorded.Count == 0) return result;
         double speed = speedKmh > 0 ? speedKmh : MovingSpeedKmh(recorded);
-        if (speed <= 0.1) speed = 4.5;
+        if (speed <= 0.1) speed = FallbackSpeedKmh;
         double mps = speed / 3.6;
 
         // Before: walk outward from the first recorded point, going back in time, then reverse.
@@ -52,6 +52,26 @@ public static class TrackExtension
             var p = new TrackPoint(g.Lat, g.Lon, last.Ele, prev.Time?.AddSeconds(d / mps));
             result.Add(p);
             prev = p;
+        }
+        return result;
+    }
+
+    /// <summary>Speed used when nothing better is known (no recorded times, speed setting 0).</summary>
+    public const double FallbackSpeedKmh = 4.5;
+
+    /// <summary>Fixed start time of a drawn route, so that rebuilding it gives identical times.</summary>
+    private static readonly DateTime RouteStart = new(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+    /// <summary>Turns a route drawn on the map into track points with synthetic times (constant speed) and no elevation.</summary>
+    public static List<TrackPoint> FromRoute(IReadOnlyList<GeoPoint> route, double speedKmh)
+    {
+        double mps = (speedKmh > 0.1 ? speedKmh : FallbackSpeedKmh) / 3.6;
+        var result = new List<TrackPoint>(route.Count);
+        double seconds = 0;
+        for (int i = 0; i < route.Count; i++)
+        {
+            if (i > 0) seconds += Track.Haversine(route[i - 1].Lat, route[i - 1].Lon, route[i].Lat, route[i].Lon) / mps;
+            result.Add(new TrackPoint(route[i].Lat, route[i].Lon, null, RouteStart.AddSeconds(seconds)));
         }
         return result;
     }

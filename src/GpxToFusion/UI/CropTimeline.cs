@@ -111,7 +111,7 @@ public sealed class CropTimeline : Control
 
         if (_track == null || _track.Count < 2)
         {
-            TextRenderer.DrawText(g, "Open a GPX file (or drag it into the window)", Font, ClientRectangle, Color.Gray,
+            TextRenderer.DrawText(g, "Open a GPX file (or drag it into the window), or draw a new route (Ctrl+N)", Font, ClientRectangle, Color.Gray,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             return;
         }
@@ -148,7 +148,7 @@ public sealed class CropTimeline : Control
         {
             float x = plot.Left + plot.Width * i / (float)steps;
             var ts = TimeSpan.FromSeconds(total * i / steps);
-            string s = ts.ToString(@"h\:mm");
+            string s = $@"{(int)ts.TotalHours}:{ts:mm}";
             var size = TextRenderer.MeasureText(s, font);
             TextRenderer.DrawText(g, s, font, new Point((int)(x - size.Width / 2f), plot.Bottom + 2), Color.Silver);
         }
